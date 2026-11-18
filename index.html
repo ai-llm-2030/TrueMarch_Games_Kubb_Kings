@@ -1,0 +1,1711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kubb Kings</title>
+<!--
+  Kubb Kings (`kubb`) — Sweden, kubb.
+  A Midsummer meadow in Dalarna, a Gotland beach (the island of the kubb world championship), a winter field under lanterns.
+  The signature: the baton spins end over end in slow motion, and a clean double topple calls a cheer of "Skål!".
+  The twist: the kubbs you lose, YOU throw onto their half as field kubbs — set them side by side and one baton takes two.
+  Pure core (Core, between CORE-BEGIN and CORE-END) runs in Node: the field, the baton, the field-first rule, the king,
+  the advantage line, the house AI and the seeded throw simulation.
+-->
+<style>
+  :root { --meadow: #5f8f3a; --pine: #20402e; --birch: #efe6d2; --sun: #e8c547; --falu: #9b2d20; --ink: #1d2a20; --dim: #5d6b5a; --sky: #2b5c8a;
+          --line: rgba(32,64,46,.2); --it-hot: #e8c547;
+          --slab: Rockwell, "Rockwell Nova", "Bookman Old Style", "Roboto Slab", Georgia, serif; --sans: "Segoe UI", system-ui, -apple-system, sans-serif; }
+  html, body { margin: 0; height: 100%; background: #12241a; color: var(--ink); font: 15px/1.4 var(--sans); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; }
+  #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .scene { position: fixed; inset: 0; display: none; z-index: 4; }
+  .scene.on { display: block; }
+  .card { background: color-mix(in srgb, var(--birch) 96%, transparent); border: 2px solid #fffaf0; border-radius: 6px; box-shadow: 0 0 0 1px rgba(32,64,46,.35), 0 16px 44px rgba(10,24,14,.45); }
+  button { font: inherit; color: inherit; }
+  .btn { font: 600 15px var(--sans); background: #fffaf0; color: var(--ink); border: 1.5px solid rgba(32,64,46,.35); border-radius: 5px; padding: 9px 14px; min-height: 44px; cursor: pointer; }
+  .btn:hover { border-color: var(--falu); }
+  .btn:focus-visible, [role=menuitem]:focus-visible, #playBtn:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+  .btn.red { background: var(--falu); color: #fffaf0; border-color: #6d1d14; }
+  .btn small { display: block; font-weight: 400; font-size: 12px; opacity: .8; }
+  kbd { display: inline-block; min-width: 1.5em; padding: 1px 6px; border: 1px solid rgba(32,64,46,.4); border-bottom-width: 3px; border-radius: 4px; font: 700 12px ui-monospace, Consolas, monospace; text-align: center; background: #fffaf0; color: var(--ink); }
+  /* ── Title ── */
+  #sc-title .menu { position: absolute; box-sizing: border-box; left: max(12px, 4vw); top: max(14px, 5vh); width: min(460px, calc(100vw - 24px)); padding: 16px 20px 14px; }
+  .logo { font: 900 46px/0.95 var(--slab); color: var(--pine); margin: 0; letter-spacing: .01em; }
+  .logo span { color: var(--falu); }
+  .sub { font: 600 12px var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--dim); margin: 6px 0 8px; }
+  .greet { display: flex; gap: 10px; align-items: center; margin: 4px 0 10px; font-size: 14px; color: var(--dim); min-height: 52px; }
+  .greet b { color: var(--ink); }
+  .greet small { display: block; }
+  #playBtn { width: 100%; text-align: left; font: 800 20px var(--slab); padding: 11px 16px; background: var(--falu); color: #fffaf0; border: 0; border-radius: 6px; box-shadow: inset 0 -4px 0 rgba(0,0,0,.25); min-height: 58px; cursor: pointer; }
+  #playBtn small { display: block; font: 500 13px var(--sans); opacity: .92; margin-top: 2px; }
+  .row5 { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; margin-top: 8px; }
+  .row5 .btn { padding: 8px 4px; font-size: 13px; text-align: center; }
+  @media (max-width: 480px) { .row5 { gap: 4px; } .row5 .btn { font-size: 11.5px; padding: 6px 2px; } .logo { font-size: 38px; } }
+  .horses { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+  .horses canvas { flex: 1; min-width: 0; height: 40px; }
+  .controls { position: fixed; right: max(14px, 3vw); bottom: 14px; z-index: 5; padding: 9px 12px; font-size: 12.5px; color: var(--dim); display: grid; gap: 4px; max-width: min(430px, calc(100vw - 28px)); }
+  .controls b { color: var(--ink); }
+  @media (max-height: 520px) { .controls { font-size: 11px; padding: 6px 9px; max-width: 320px; right: 10px; bottom: 8px; } #sc-title .menu { top: 8px; padding: 10px 14px; } .logo { font-size: 30px; } .greet { min-height: 0; margin: 2px 0 6px; } .horses { display: none; } }
+  @media (orientation: portrait) and (max-width: 600px) { .controls { left: 12px; right: 12px; bottom: 10px; } }
+  /* ── Panels ── */
+  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(980px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; padding: 18px 22px; box-sizing: border-box; }
+  .panel h2 { font: 800 26px var(--slab); margin: 0 0 4px; color: var(--pine); }
+  .panel h2 small { display: block; font: 600 12px var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--falu); }
+  .acts { display: grid; gap: 10px; margin-top: 10px; }
+  .act h3 { margin: 0 0 6px; font: 700 15px var(--slab); color: var(--pine); }
+  .grid5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+  @media (max-width: 700px) { .grid5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .mc { text-align: left; background: #fffaf0; border: 1.5px solid var(--line); border-radius: 5px; padding: 7px 8px; cursor: pointer; min-height: 84px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--dim); }
+  .mc b { color: var(--ink); font-size: 13px; }
+  .mc .rw { margin-top: auto; font-weight: 700; color: var(--falu); }
+  .mc.done { border-color: var(--meadow); } .mc.done .st { color: #3e6b22; }
+  .mc.final { background: linear-gradient(180deg, #fffaf0, #f6ecc4); }
+  .mc[disabled] { opacity: .45; cursor: not-allowed; }
+  .mc.next { box-shadow: 0 0 0 2px var(--falu); }
+  .mc .nw { color: #2b5c8a; font-weight: 600; font-size: 11px; }
+  .mc .sr3 { color: #c99a1b; font-size: 14px; letter-spacing: .08em; }
+  .tgh { margin: 12px 0 0; font: 700 15px var(--slab); color: var(--pine); }
+  .rank { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 6px; padding: 4px 10px; border-radius: 5px; background: #fffaf0; border: 1px solid var(--line); font: 700 13px var(--sans); color: var(--pine); }
+  .rank b { color: #c99a1b; font-size: 15px; }
+  .rline b.starbig { color: #c99a1b; font-size: 26px; letter-spacing: .08em; }
+  #halfBtn { position: absolute; right: 10px; bottom: 96px; display: none; }
+  #halfBtn.on { background: #fbf0c0; border-color: var(--sun); }
+  .touch #halfBtn { bottom: 92px; }
+  .extras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+  .how { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .how canvas { width: 100%; height: 230px; border-radius: 6px; background: #9cc27a; }
+  @media (max-width: 720px) { .how { grid-template-columns: 1fr; } }
+  .how li { margin: 4px 0; }
+  .set { display: grid; gap: 8px; margin-top: 10px; }
+  .set label { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #fffaf0; border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px; min-height: 44px; box-sizing: border-box; }
+  .set input { width: 22px; height: 22px; accent-color: var(--falu); }
+  .back { position: fixed; left: 12px; top: 12px; z-index: 30; display: none; font: 800 13px var(--sans); letter-spacing: .12em; background: var(--pine); color: #fffaf0; border: 2px solid #fffaf0; border-radius: 6px; padding: 8px 12px; min-height: 44px; min-width: 44px; cursor: pointer; }
+  .back.on { display: inline-flex; gap: 8px; align-items: center; }
+  .back kbd { background: #2f5a40; color: #fff; border-color: #7da58a; }
+  @media (hover: none) and (pointer: coarse) { .back kbd, .keys-only { display: none !important; } }
+  /* ── Results: Fika Time ── */
+  #sc-results .panel { width: min(1180px, 88vw); height: min(600px, calc(100vh - 24px)); display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { #sc-results .panel { width: calc(100vw - 16px); grid-template-columns: 1fr; height: auto; } }
+  .rbox { background: #fffaf0; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow: auto; }
+  .rbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .rline { margin: 8px 0; color: var(--dim); }
+  .rline b { color: var(--ink); }
+  .up { color: #3e6b22; font-weight: 800; }
+  /* ── Play HUD ── */
+  .hud { position: fixed; inset: 0; pointer-events: none; z-index: 3; display: none; }
+  .hud.on { display: block; }
+  .hud > * { pointer-events: auto; }
+  #board { position: absolute; left: 10px; top: 10px; background: rgba(255,250,240,.94); border-radius: 6px; padding: 5px 9px; box-shadow: 0 4px 16px rgba(0,0,0,.25); font: 700 13px var(--sans); display: grid; gap: 2px; min-width: 150px; }
+  #board .row { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+  #board .nm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  #board i { width: 7px; height: 13px; display: inline-block; background: #d8c8a0; border: 1px solid rgba(0,0,0,.35); border-radius: 1px; }
+  #board i.off { opacity: .25; }
+  #board i.k { width: 9px; height: 16px; background: var(--sun); }
+  #board .bat { color: var(--dim); font-weight: 600; font-size: 12px; }
+  #call { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: rgba(32,64,46,.9); color: #fffaf0; border-radius: 30px; padding: 4px 14px 4px 4px; font: 600 14px var(--sans); max-width: min(560px, 56vw); }
+  .it { background: rgba(255,250,240,.95); border: 1.5px solid rgba(32,64,46,.35); border-radius: 6px; min-height: 44px; min-width: 44px; padding: 4px 7px; flex: none; font: 700 13px var(--sans); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  #ctl { position: absolute; right: 10px; bottom: 10px; display: none; }
+  .touch #ctl { display: block; }
+  #throwBtn { min-width: 120px; min-height: 68px; font-weight: 800; font-size: 16px; }
+  #tr { position: fixed; right: 8px; top: 8px; z-index: 31; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+  #tr > * { pointer-events: auto; }
+  #topBtns { display: none; gap: 6px; }
+  #topBtns.on { display: flex; }
+  #big { position: fixed; left: 0; right: 0; top: 28%; text-align: center; z-index: 6; pointer-events: none; font: 900 clamp(40px, 10vw, 112px)/1 var(--slab); color: var(--sun); letter-spacing: .02em; text-shadow: 0 4px 0 var(--sky), 0 8px 30px rgba(0,0,0,.5); opacity: 0; transform: scale(.88); transition: opacity .18s, transform .22s; }
+  #big.on { opacity: 1; transform: scale(1); }
+  #big small { display: block; font: 700 clamp(14px, 2.4vw, 22px) var(--sans); letter-spacing: .18em; color: #fffaf0; text-shadow: 0 2px 6px rgba(0,0,0,.7); margin-top: 8px; }
+  #toast { position: fixed; left: 50%; bottom: 86px; transform: translateX(-50%); z-index: 20; background: rgba(32,64,46,.95); color: #fffaf0; padding: 9px 16px; border-radius: 22px; font: 600 14px var(--sans); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 86vw; text-align: center; }
+  #toast.on { opacity: 1; }
+  #tip { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 8; display: none; width: min(460px, calc(100vw - 24px)); padding: 12px 14px; box-sizing: border-box; }
+  #tip.on { display: block; }
+  #tip p { margin: 0 0 8px; font-weight: 600; }
+  @media (orientation: portrait) { #call { top: 92px; left: 8px; right: 8px; transform: none; max-width: none; font-size: 13px; } }
+  @media (orientation: landscape) and (max-height: 500px) { #call { left: 190px; transform: none; max-width: calc(100vw - 360px); font-size: 12px; } #board { font-size: 12px; } }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  @media (prefers-reduced-motion: reduce) { .kb * { transition: none !important; animation: none !important; } }
+  .rm * { transition: none !important; animation: none !important; }
+</style>
+</head>
+<body class="kb">
+<canvas id="cv" aria-hidden="true"></canvas>
+
+<div class="hud" id="hud">
+  <div id="board" aria-label="The field"></div>
+  <div id="call" aria-live="polite"><span id="callFace"></span><span id="callTxt">Hej!</span></div>
+  <div id="ctl"><button class="btn red" id="throwBtn">Hold to throw</button></div>
+  <button class="btn" id="halfBtn" style="display:none">↑ Step up · half line</button>
+</div>
+<div id="tr"><div id="topBtns"><button class="it" id="pauseBtn" title="Pause (P)">II</button></div></div>
+<div id="big" aria-hidden="true"></div>
+<div id="toast" role="status"></div>
+<div id="tip" class="card" role="dialog" aria-label="Tip"><p id="tipTxt"></p><button class="btn" id="tipSkip">Skip tips</button> <button class="btn red" id="tipOk">Got it</button></div>
+<button class="back" id="back" aria-label="Back (Esc)">◀ BACK <kbd>Esc</kbd></button>
+
+<section class="scene" id="sc-title" role="region" aria-labelledby="logo">
+  <div class="menu card">
+    <h1 class="logo" id="logo">Kubb <span>Kings</span></h1>
+    <div class="sub">Kubb · Vikingaschack · Sweden</div>
+    <div class="greet" id="greet"></div>
+    <div class="rank" id="rankChip" aria-label="Your rank"></div>
+    <button id="playBtn">Play</button>
+    <div class="row5" id="row5" role="menu" aria-label="Main menu"></div>
+    <div class="horses"><span id="horsesLbl">Dala horses</span><canvas id="horsesCv" aria-label="Your Dala horses"></canvas></div>
+  </div>
+</section>
+<div class="controls card" id="controlsCard">
+  <div class="keys-only"><kbd>←</kbd><kbd>→</kbd> aim (or the mouse) · hold <kbd>Space</kbd> for distance · let go when the ring is <b>green</b> (gold = Rakt!) · <kbd>↑</kbd> half line</div>
+  <div class="keys-only">Your felled kubbs: move the mark, <kbd>Space</kbd> throws them onto their half</div>
+  <div class="touch-only" style="display:none"><b>Touch:</b> drag to aim · hold <b>Throw</b> for distance · let go on green (gold = Rakt!) · tap their half to place a kubb · <b>Step up</b> = the half-line king shot</div>
+  <div class="keys-only"><kbd>Esc</kbd> back · <kbd>P</kbd> pause · <kbd>M</kbd> sound</div>
+</div>
+
+<section class="scene" id="sc-missions" role="dialog" aria-modal="true" aria-labelledby="mH">
+  <div class="panel card"><h2 id="mH"><small>The summer and the winter</small>Missions</h2><div class="acts" id="acts"></div><div class="extras" id="extras"></div><h3 class="tgh">Training ground · one drill per technique</h3><div class="extras" id="training"></div></div>
+</section>
+<section class="scene" id="sc-how" role="dialog" aria-modal="true" aria-labelledby="hH">
+  <div class="panel card"><h2 id="hH"><small>Farmor Ingrid explains</small>How to play</h2>
+    <div class="how"><div><ol>
+      <li><b>Throw the batons</b> — six a turn, underhand, end over end. <span class="keys-only"><kbd>←</kbd><kbd>→</kbd> aim, hold <kbd>Space</kbd>: the mark runs out over the grass. </span>Let go when the ring is <b>green</b> for a clean end-over-end spin; let go on red and it helicopters.</li>
+      <li><b>Kubbs</b> — the wooden blocks. Topple the kubbs on <i>their</i> half.</li>
+      <li><b>Field kubbs</b> — the kubbs they topple of yours, you throw onto their half, and stand up. You must topple those first. Put them side by side: one baton can take two. <i>Skål!</i></li>
+      <li><b>Field first</b> — a baseline kubb knocked while a field kubb stands is stood up again.</li>
+      <li><b>The advantage line</b> — field kubbs left standing let the other side step up to the nearest one.</li>
+      <li><b>The king</b> — when every kubb on their half is down, topple the king from your baseline and you win. Hit him early and you lose.</li>
+    </ol>
+    <h3 style="margin:8px 0 4px">Techniques — one unlocks per act</h3><ol>
+      <li><b>Rakt!</b> (from mission 2) — the vertical throw: let go in the <b>gold</b> core of the ring. The baton flies dead straight, skids on through and barely rolls on bumps.</li>
+      <li><b>Drilla</b> (from mission 6) — your inkast becomes hold-and-release: aim it right onto a lone field kubb of yours and let go on gold — it stands on top as a <b>tower</b>, and one baton fells both.</li>
+      <li><b>The half-line king shot</b> (from mission 11) — with their half clear, <span class="keys-only">press <kbd>↑</kbd></span><span class="touch-only" style="display:none">tap <b>Step up</b></span> to throw from 2 m. Only a gold release counts: anything else is a foul and your turn ends.</li>
+    </ol>
+    <p style="margin:6px 0"><b>Act 2</b>: the inkast — short of the middle line or out is thrown again; out twice is a <i>straffkubb</i> they stand where you like it least. They also <i>raise</i> your kubbs a kubb-length apart (towers and lines survive). <b>Act 3</b>: bumpy snow rolls the baton. <b>Stars</b>: ★ win · ★★ and ★★★ targets on each mission card; your rank comes from them.</p></div><canvas id="howCv" aria-label="A baton spinning end over end into two kubbs"></canvas></div>
+  </div>
+</section>
+<section class="scene" id="sc-settings" role="dialog" aria-modal="true" aria-labelledby="sH">
+  <div class="panel card" style="width:min(520px,calc(100vw - 24px))"><h2 id="sH"><small>In the stuga</small>Settings</h2><div class="set" id="setList"></div></div>
+</section>
+<section class="scene" id="sc-pause" role="dialog" aria-modal="true" aria-labelledby="pH">
+  <div class="panel card" style="width:min(420px,calc(100vw - 24px))"><h2 id="pH"><small>A sip of saft</small>Paused</h2><div class="set" id="pauseList"></div></div>
+</section>
+<section class="scene" id="sc-results" role="dialog" aria-modal="true" aria-labelledby="rH">
+  <div class="panel card">
+    <div class="rbox"><h2 id="rH"><small id="rKick">Fika Time</small><span id="rTitle">Well thrown</span></h2><p class="rline" id="rWhy"></p></div>
+    <div class="rbox"><canvas id="rHorse" width="120" height="120" style="width:100px;height:100px;float:right"></canvas><div id="rStats"></div><p class="rline" id="rVoice"></p><div class="rbtns" id="rBtns"></div></div>
+  </div>
+</section>
+<div class="sr" aria-live="polite" id="live"></div>
+
+<script>
+(function () {
+  'use strict';
+  var GAME_ID = 'kubb';
+/*CORE-BEGIN*/
+/* Kubb Kings — the pure core: the field, the baton, the rules, the match and the house AI.
+   No DOM, no clock, no Math.random: every page (and Node) gets the same numbers from the same inputs.
+   Field in metres: x across (−2.5 … 2.5), y along (0 = side 0's baseline, 8 = side 1's), the king at (0, 4).
+   Side 0's half is y < 4, side 1's is y > 4. A side throws batons at the OTHER half.
+   Advanced (2026-10-29): M.rules switches the techniques and act rules on —
+     vert   the vertical (rakt) throw: a release in the gold core of the ring flies straight and skids on
+     tower  drilling: a field kubb thrown onto one of your standing field kubbs is raised on top of it (a tower)
+     inkast the tournament inkast: short of the middle line or out of the field = thrown again; out twice = a penalty
+            kubb the defender places
+     raise  the defender stands each thrown kubb up on the end of its choice: a kubb-length away from its neighbours
+     ground uneven ground (act 3): seeded bumps roll a landing baton downhill; a vertical baton sticks
+     half   the half-line king shot: with their half cleared, step up to 2 m from the king, but only a vertical baton counts */
+var Core = (function () {
+  'use strict';
+  var HW = 2.5, LEN = 8, MID = 4, KW = 0.07, KH = 0.15, KINGW = 0.09, KINGH = 0.30, BATON = 0.30, BR = 0.022, BATONS = 6;
+  var VERT = 0.9, HALF = 2, RAISE = 0.15, REACH = 10, LOB = 5;   // the power bar covers 10 m; from the half line, a 5 m lob
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function hash(s) { var h = 2166136261; s = String(s); for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  /** The random stream for one action of a match: the match seed + the action's index. */
+  function rngFor(seed, seq, salt) { return mulberry((hash(seed + ':' + seq + ':' + (salt || 0)) ^ 0x5bd1e995) >>> 0); }
+  function gauss(r) { var u = r() || 1e-9, v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307 * v); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function r3(v) { return Math.round(v * 1000) / 1000; }
+  function hyp(x, y) { return Math.sqrt(x * x + y * y); }
+  function base(s) { return s === 0 ? 0 : LEN; }
+  function dirOf(s) { return s === 0 ? 1 : -1; }
+  function inHalf(h, y) { return h === 0 ? y < MID : y > MID; }
+  function rulesOf(o) { o = o || {}; return { vert: o.vert ? 1 : 0, tower: o.tower ? 1 : 0, inkast: o.inkast ? 1 : 0, raise: o.raise ? 1 : 0, ground: o.ground ? 1 : 0, half: o.half ? 1 : 0 }; }
+
+  /** o: {n kubbs a side, seed, wind: base lateral wind (m/s, + = toward +x), gust: its spread, first: who throws first, batons, rules} */
+  function newMatch(o) {
+    var M = { n: o.n || 5, seed: (o.seed >>> 0) || 1, wind: +o.wind || 0, gust: +o.gust || 0, seq: 0, nid: 0, turn: o.first | 0, phase: 'throw', batons: o.batons || BATONS,
+      kubbs: [], king: { x: 0, y: MID, up: true }, pend: [0, 0], line: [0, LEN], over: false, winner: -1, why: '', turns: 0, thrown: [0, 0], top: [0, 0], doubles: [0, 0],
+      rules: rulesOf(o.rules), bumps: [], outs: 0, habit: [[1, 2, 1, 2], [1, 2, 1, 2]], pens: [0, 0], tow: [0, 0], fouls: [0, 0], verts: [0, 0] };
+    for (var s = 0; s < 2; s++) for (var i = 0; i < M.n; i++) M.kubbs.push({ id: 'k' + (M.nid++), x: r3(-HW + 2 * HW * (i + 1) / (M.n + 1)), y: base(s), half: s, field: false, up: true });
+    if (M.rules.ground) {   // frozen tussocks and hollows, the same for both pages: from the seed
+      var g = rngFor(M.seed, 'ground');
+      for (i = 0; i < 8; i++) { var bx = -2.1 + g() * 4.2, by = 0.8 + g() * 6.4; if (Math.abs(by - MID) < 0.5 && Math.abs(bx) < 0.6) by += by < MID ? -0.6 : 0.6; M.bumps.push({ x: r3(bx), y: r3(by), r: r3(0.35 + g() * 0.35), h: r3((g() < 0.7 ? 1 : -1) * (0.04 + g() * 0.05)) }); }
+    }
+    return M;
+  }
+  function clone(M) { return JSON.parse(JSON.stringify(M)); }
+  function standing(M, h, field) { return M.kubbs.filter(function (k) { return k.up && k.half === h && (field == null || k.field === field); }); }
+  /** Where side s throws from: its line (the advantage line), but the king is only ever thrown at from the baseline. */
+  function origin(M, s) { var t = 1 - s; return standing(M, t).length ? M.line[s] : base(s); }
+  /** The half-line king shot is open: their half is clear and the rule is on. */
+  function halfOK(M, s) { return !!(M.rules && M.rules.half && M.king.up && !standing(M, 1 - s).length); }
+  function originFor(M, s, half) { return half && halfOK(M, s) ? base(s) + dirOf(s) * HALF : origin(M, s); }
+  /** The wind for action seq, known before the throw. */
+  function windAt(M, seq) { var r = rngFor(M.seed, seq, 'w'); return r3(M.wind + M.gust * (r() * 2 - 1)); }
+  function clampInput(i) { i = i || {}; return { aim: r3(clamp(+i.aim || 0, -0.45, 0.45)), power: r3(clamp(+i.power || 0, 0, 1)), spin: r3(clamp(+i.spin || 0, 0, 1)), half: i.half ? 1 : 0 }; }
+  function dist2Seg(px, py, ax, ay, bx, by) { var dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0; t = clamp(t, 0, 1); var qx = ax + dx * t - px, qy = ay + dy * t - py; return Math.sqrt(qx * qx + qy * qy); }
+  /** The ground's height and slope (act 3): a sum of round bumps. */
+  function heightAt(M, x, y) { var h = 0; (M.bumps || []).forEach(function (b) { var q = ((x - b.x) * (x - b.x) + (y - b.y) * (y - b.y)) / (b.r * b.r); if (q < 9) h += b.h * Math.exp(-q); }); return h; }
+  function slope(M, x, y) { var gx = 0, gy = 0; (M.bumps || []).forEach(function (b) { var dx = x - b.x, dy = y - b.y, q = (dx * dx + dy * dy) / (b.r * b.r); if (q > 9) return; var e = b.h * Math.exp(-q) * -2 / (b.r * b.r); gx += e * dx; gy += e * dy; }); return [gx, gy]; }
+  /** How far a landing baton rolls downhill: a vertical baton digs in and barely moves. */
+  function bumpShift(M, x, y, vert) { if (!M.rules || !M.rules.ground || !M.bumps.length) return [0, 0]; var g = slope(M, x, y), k = vert ? 0.25 : 0.8; return [-g[0] * k, -g[1] * k]; }
+  /** Where a throw would land with no wobble (the reticle). */
+  function aimPoint(M, s, inp, wind, ground) {
+    var hl = !!(inp.half && halfOK(M, s)), d = 0.5 + inp.power * (hl ? LOB : REACH), sx = dirOf(s), y0 = originFor(M, s, hl);
+    var x = sx * Math.sin(inp.aim) * d + (wind || 0) * d * 0.015, y = y0 + sx * Math.cos(inp.aim) * d;
+    if (ground) { var b = bumpShift(M, x, y, (inp.spin || 0) >= VERT && M.rules.vert); x += b[0]; y += b[1]; }
+    return { x: r3(x), y: r3(y), d: d };
+  }
+  function towerOn(M, k) { for (var i = 0; i < M.kubbs.length; i++) if (M.kubbs[i].up && M.kubbs[i].on === k.id) return M.kubbs[i]; return null; }
+  /** One baton, simulated. Pure: the match is not changed. */
+  function throwSim(M, inpRaw) {
+    var inp = clampInput(inpRaw), s = M.turn, t = 1 - s, r = rngFor(M.seed, M.seq), sx = dirOf(s);
+    var half = !!(inp.half && halfOK(M, s)), y0 = half ? base(s) + sx * HALF : origin(M, s), vert = M.rules.vert && inp.spin >= VERT ? 1 : 0;
+    var spinBad = 1 - inp.spin, d = 0.5 + inp.power * (half ? LOB : REACH), w = windAt(M, M.seq);
+    var nL = gauss(r) * (0.05 + 0.30 * spinBad) * (d / 8) * (vert ? 0.5 : 1), nD = gauss(r) * (0.07 + 0.28 * spinBad) * (d / 8) * (vert ? 0.7 : 1);
+    var dd = d + nD, ang = inp.aim + nL / Math.max(1, d);
+    var fx = sx * Math.sin(ang), fy = sx * Math.cos(ang);
+    var Lx = fx * dd + w * d * 0.015, Ly = y0 + fy * dd, bs = bumpShift(M, Lx, Ly, vert);
+    Lx = r3(Lx + bs[0]); Ly = r3(Ly + bs[1]);
+    var skid = 0.08 + 0.18 * inp.spin + (vert ? 0.1 : 0), ax = Lx - 0.55 * fx, ay = Ly - 0.55 * fy, bx = Lx + skid * fx, by = Ly + skid * fy;
+    var hw = BR + KW / 2 + 0.035 + spinBad * 0.10, force = 0.98 - spinBad * 0.28 + (vert ? 0.03 : 0);
+    var fieldUp = standing(M, t, true).length > 0, allDown = standing(M, t).length === 0, fromBase = y0 === base(s) || half;
+    var top = [], raised = [], king = 0, foul = half && !vert ? 1 : 0;
+    function fell(k) { if (!k.field && fieldUp) raised.push(k.id); else top.push(k.id); }
+    function towers() {   // a tower falls with the kubb it stands on
+      M.kubbs.forEach(function (k) { if (k.up && k.on && k.half === t && top.indexOf(k.on) >= 0 && top.indexOf(k.id) < 0 && r() < 0.95) top.push(k.id); });
+    }
+    if (!foul) {
+      M.kubbs.forEach(function (k) {
+        if (!k.up || k.half !== t || k.on) return;
+        var dk = dist2Seg(k.x, k.y, ax, ay, bx, by);
+        if (dk < hw && r() < force - 0.32 * (dk / hw)) fell(k);
+      });
+      towers();
+      // A falling kubb takes its neighbour with it: the field kubbs placed side by side are the double.
+      for (var pass = 0; pass < 2; pass++) {
+        top.slice().forEach(function (id) {
+          var k = find(M, id), tx = k.x + fx * 0.12, ty = k.y + fy * 0.12;
+          M.kubbs.forEach(function (o) {
+            if (!o.up || o.half !== t || o.on || top.indexOf(o.id) >= 0 || raised.indexOf(o.id) >= 0) return;
+            if (hyp(o.x - tx, o.y - ty) < 0.16 && r() < 0.78) fell(o);
+          });
+        });
+        towers();
+      }
+      var dkK = dist2Seg(M.king.x, M.king.y, ax, ay, bx, by);
+      if (M.king.up && dkK < BR + KINGW / 2 + spinBad * 0.12 && r() < 0.92) king = allDown && fromBase ? 2 : 1;
+    }
+    return { t: 'thr', s: s, seq: M.seq, inp: inp, o: [0, r3(y0)], L: [Lx, Ly], f: [r3(fx), r3(fy)], d: r3(dd), w: w, top: top, raised: raised, king: king, v: vert, h: half ? 1 : 0, foul: foul };
+  }
+  function find(M, id) { for (var i = 0; i < M.kubbs.length; i++) if (M.kubbs[i].id === id) return M.kubbs[i]; return null; }
+  /** Commit a baton. */
+  function applyThrow(M, r, opt) {
+    if (M.over || M.phase !== 'throw' || r.seq !== M.seq || r.s !== M.turn) return false;
+    var s = M.turn, t = 1 - s, n = 0, aimed = standing(M, t).length > 0;
+    r.top.forEach(function (id) { var k = find(M, id); if (k && k.up) { k.up = false; n++; } });
+    M.kubbs = M.kubbs.filter(function (k) { return k.up; });
+    M.kubbs.forEach(function (k) { if (k.on && !find(M, k.on)) delete k.on; });   // a tower's top whose base fell drops onto the grass
+    M.pend[t] += n; M.top[s] += n; if (n >= 2) M.doubles[s]++;
+    if (r.v && n) M.verts[s]++;
+    if (aimed && r.inp) { var sd = r.inp.aim * 1 >= 0 ? 2 : 0; M.habit[s][sd + 1]++; if (n) M.habit[s][sd]++; }   // the thrower's left/right hit rate: the defender reads it
+    M.thrown[s]++; M.batons--; M.seq++;
+    if (r.foul) { M.fouls[s]++; M.batons = 0; endTurn(M); return true; }
+    if (r.king === 2) { M.king.up = false; M.over = true; M.winner = s; M.why = r.h ? 'king-half' : 'king'; return true; }
+    if (r.king === 1) { M.king.up = false; M.over = true; M.winner = t; M.why = 'king-early'; return true; }
+    if (M.batons <= 0) endTurn(M);
+    return true;
+  }
+  function endTurn(M) {
+    var s = M.turn, t = 1 - s, f = standing(M, t, true);
+    M.line[s] = base(s);
+    // Field kubbs left standing: the other side steps up to the one nearest the king.
+    if (f.length) M.line[t] = r3(t === 1 ? Math.min.apply(null, f.map(function (k) { return k.y; })) : Math.max.apply(null, f.map(function (k) { return k.y; })));
+    else M.line[t] = base(t);
+    M.turn = t; M.batons = BATONS; M.turns++; M.outs = 0;
+    M.phase = M.pend[t] > 0 ? 'place' : 'throw';
+  }
+  /** The zone a side throws its knocked kubbs into: the other half, not past the baseline (the inkast lets you go closer). */
+  function placeZone(s, M) { var near = M && M.rules && M.rules.inkast ? 0.15 : 0.75; return s === 0 ? { y0: MID + near, y1: LEN - 0.3 } : { y0: 0.3, y1: MID - near }; }
+  /** The thrower's weak side (in the thrower's own frame: −1 left, +1 right), from its hit rate so far. */
+  function weakSide(M, s) { var h = M.habit[s], l = h[0] / h[1], rr = h[2] / h[3]; return Math.abs(l - rr) < 0.08 ? 0 : l < rr ? -1 : 1; }
+  function nearKubb(M, half, x, y, skip) { var best = 9; M.kubbs.forEach(function (k) { if (!k.up || k.half !== half || k === skip) return; best = Math.min(best, hyp(k.x - x, k.y - y)); }); return best; }
+  /** A penalty kubb: the defender stands it where the thrower likes it least — far back, alone, on the thrower's weak side. */
+  function penaltySpot(M, s) {
+    var t = 1 - s, sx = dirOf(s), ws = weakSide(M, s), best = null;
+    [-2, -1.4, -0.7, 0, 0.7, 1.4, 2].forEach(function (x) { [1.2, 2.0, 2.8, 3.5].forEach(function (dd) {
+      var y = MID + sx * dd; if (hyp(x, y - MID) < 0.6) return;
+      var sc = Math.min(nearKubb(M, t, x, y), 0.8) + dd * 0.25 + (ws && x * sx * ws > 0 ? 0.5 : 0) - Math.abs(x) * 0.01;
+      if (!best || sc > best.sc + 1e-9) best = { x: x, y: y, sc: sc };
+    }); });
+    return [r3(best.x), r3(best.y)];
+  }
+  /** The raise: the defender stands the kubb up a kubb-length away — the way that leaves it most alone, then toward the thrower's weak side. */
+  function raiseSpot(M, s, x, y) {
+    var t = 1 - s, sx = dirOf(s), ws = weakSide(M, s), z = placeZone(s, M), best = { x: x, y: y, sc: Math.min(nearKubb(M, t, x, y), 0.4) }, i;
+    for (i = 0; i < 8; i++) {
+      var a = i * Math.PI / 4, nx = x + Math.cos(a) * RAISE, ny = y + Math.sin(a) * RAISE;
+      if (Math.abs(nx) > HW - 0.1 || ny < Math.min(z.y0, z.y1) || ny > Math.max(z.y0, z.y1) || hyp(nx, ny - MID) < 0.3) continue;
+      var sc = Math.min(nearKubb(M, t, nx, ny), 0.4) + (ws && nx * sx * ws > x * sx * ws ? 0.01 : 0) + (ny - y) * sx * 0.005;
+      if (sc > best.sc + 1e-9) best = { x: nx, y: ny, sc: sc };
+    }
+    return [r3(best.x), r3(best.y)];
+  }
+  /** p: [x, y, q] — q is the release quality of the inkast (0 … 1; a tap is 0.5). */
+  function placeSim(M, p) {
+    p = p || [];
+    var s = M.turn, t = 1 - s, z = placeZone(s, M), r = rngFor(M.seed, M.seq, 'p'), R = M.rules;
+    var q = clamp(p[2] == null ? 0.5 : +p[2] || 0, 0, 1), nk = (R.inkast ? 1.4 : 1) * (1.5 - q);
+    var tx = clamp(+p[0] || 0, -HW + 0.2, HW - 0.2), ty = clamp(+p[1] || 0, z.y0, z.y1);
+    var x = tx + gauss(r) * 0.13 * nk, y = ty + gauss(r) * 0.15 * nk, res = { t: 'plc', s: s, seq: M.seq, p: [r3(tx), r3(ty), r3(q)] };
+    if (R.tower) {   // the drill: aimed onto a lone field kubb, it lands on top of it — a tower
+      var b = null; M.kubbs.forEach(function (k) { if (k.up && k.field && k.half === t && !k.on && !towerOn(M, k) && hyp(k.x - tx, k.y - ty) < 0.12 && (!b || hyp(k.x - tx, k.y - ty) < hyp(b.x - tx, b.y - ty))) b = k; });
+      if (b && hyp(x - b.x, y - b.y) < 0.11) { res.at = [b.x, b.y]; res.ld = res.at; res.on = b.id; return res; }
+    }
+    if (R.inkast) {   // short of the middle line, over a side line or the baseline: out
+      var past = (y - MID) * dirOf(s);
+      if (past < 0.08 || Math.abs(x) > HW - 0.05 || past > MID - 0.05) {
+        res.ld = [r3(clamp(x, -HW - 0.4, HW + 0.4)), r3(clamp(y, -0.4, LEN + 0.4))];
+        if (M.outs >= 1) { res.at = penaltySpot(M, s); res.pen = 1; } else res.out = 1;
+        return res;
+      }
+      x = clamp(x, -HW + 0.1, HW - 0.1);
+    } else { x = clamp(x, -HW + 0.1, HW - 0.1); y = clamp(y, z.y0, z.y1); }
+    var lo = Math.min(z.y0, z.y1) - (R.inkast ? 0.1 : 0), hi = Math.max(z.y0, z.y1) + (R.inkast ? 0.25 : 0);
+    for (var it = 0; it < 6; it++) {   // never inside another kubb: it settles against it, touching
+      var hit = null; M.kubbs.forEach(function (k) { if (hyp(x - k.x, y - k.y) < KW * 1.05) hit = k; });
+      if (hyp(x - M.king.x, y - M.king.y) < 0.16) { y = s === 0 ? Math.max(y, MID + 0.25) : Math.min(y, MID - 0.25); }
+      if (!hit) break;
+      var ax = x - hit.x, ay = y - hit.y, L = hyp(ax, ay) || 1; if (L < 1e-3) { ax = 1; ay = 0; L = 1; }
+      x = clamp(hit.x + ax / L * KW * 1.08, -HW + 0.1, HW - 0.1); y = clamp(hit.y + ay / L * KW * 1.08, lo, hi);
+    }
+    res.ld = [r3(x), r3(y)];
+    res.at = R.raise ? raiseSpot(M, s, x, y) : res.ld;
+    if (R.raise && (res.at[0] !== res.ld[0] || res.at[1] !== res.ld[1])) res.rz = 1;
+    return res;
+  }
+  function applyPlace(M, r) {
+    if (M.over || M.phase !== 'place' || r.seq !== M.seq || r.s !== M.turn || M.pend[M.turn] <= 0) return false;
+    var s = M.turn;
+    if (r.out) { M.outs++; M.seq++; return true; }
+    var k = { id: 'k' + (M.nid++), x: r.at[0], y: r.at[1], half: 1 - s, field: true, up: true };
+    if (r.on) { var b = find(M, r.on); if (b && b.up && !towerOn(M, b)) { k.on = b.id; k.x = b.x; k.y = b.y; M.tow[s]++; } }
+    if (r.pen) M.pens[s]++;
+    M.kubbs.push(k);
+    M.pend[s]--; M.seq++; M.outs = 0;
+    if (M.pend[s] <= 0) M.phase = 'throw';
+    return true;
+  }
+  function apply(M, r, opt) { return r.t === 'plc' ? applyPlace(M, r) : applyThrow(M, r, opt); }
+  /** The house: where to throw its kubbs and which kubb to throw at. skill 0…1.
+      style: 'friendly' (act 1: side by side, the nearest kubb), 'driller' (act 2: drills towers and lines, aims at clusters),
+      'tactician' (act 3 and the top tier: the best expected topple, reads the bumps, vertical throws, the half-line king shot). */
+  function plan(M, skill, style) {
+    style = style || 'friendly';
+    var s = M.turn, t = 1 - s, r = rngFor(M.seed, M.seq, 'ai'), sx = dirOf(s), smart = style !== 'friendly', R = M.rules || {};
+    if (M.phase === 'place') {
+      var z = placeZone(s, M), mine = standing(M, t, true), q = clamp(0.3 + 0.7 * skill + gauss(r) * 0.1, 0, 1), sl = 1 - skill;
+      if (smart && R.tower) {
+        var free = mine.filter(function (k) { return !k.on && !towerOn(M, k); });
+        free.sort(function (a, b) { return Math.abs(a.y - MID) - Math.abs(b.y - MID); });
+        if (free.length) return { place: [free[0].x + gauss(r) * 0.06 * sl, free[0].y + gauss(r) * 0.06 * sl, q] };
+      }
+      var nearM = style === 'tactician' ? (R.inkast ? 0.45 : 0.3) : 0.5, yNear = s === 0 ? z.y0 + nearM : z.y1 - nearM;
+      if (smart && mine.length) { var last = mine[mine.length - 1]; return { place: [last.x + gauss(r) * 0.05 * sl, last.y + sx * 0.11 + gauss(r) * 0.05 * sl, q] }; }   // in a line: it survives the raise
+      var px = mine.length ? mine[mine.length - 1].x + (r() < 0.5 ? -1 : 1) * 0.085 : (r() - 0.5) * 1.6;
+      var py = mine.length ? mine[mine.length - 1].y : yNear + (r() - 0.5) * 0.6 * skill;
+      return { place: [px + gauss(r) * 0.15 * sl, py + gauss(r) * 0.2 * sl, q] };
+    }
+    var half = style === 'tactician' && skill >= 0.7 && halfOK(M, s);
+    var y0 = half ? base(s) + sx * HALF : origin(M, s), f = standing(M, t, true), b = standing(M, t, false), tg = null;
+    var pool = f.length ? f : b;
+    if (pool.length) pool.forEach(function (k) {
+      if (k.on) return;
+      var kd = hyp(k.x, k.y - MID), dist = Math.abs(k.y - y0) + Math.abs(k.x) * 0.5, d;
+      if (!smart) d = dist + (kd < 0.7 ? 3 : 0);   // the house keeps clear of the king
+      else {   // the best expected topple: a tower or a line behind it counts double
+        var ev = 1 + (towerOn(M, k) ? 0.95 : 0); pool.forEach(function (o) { if (o !== k && !o.on && hyp(o.x - k.x, o.y - (k.y + sx * 0.12)) < 0.16) ev += 0.78; });
+        d = dist / ev + (kd < 0.7 ? 3 : 0);
+      }
+      if (!tg || d < tg.d) tg = { x: k.x, y: k.y, d: d };
+    });
+    else tg = { x: M.king.x, y: M.king.y };
+    var tx = tg.x, ty = tg.y;
+    if (style === 'tactician' && R.ground) { var bs = bumpShift(M, tx, ty, false); tx -= bs[0] * skill; ty -= bs[1] * skill; }
+    var dy = (ty - y0) * sx, dx = tx * sx, dist = Math.sqrt(dx * dx + dy * dy) + 0.12;
+    var aim = Math.atan2(dx, dy) - M.wind * 0.015 * sx * skill + gauss(r) * 0.045 * (1.15 - skill), power = (dist - 0.5) / (half ? LOB : REACH) + gauss(r) * 0.05 * (1.15 - skill) * (half ? 2 : 1);
+    var spin = half ? 0.62 + 0.4 * skill + gauss(r) * 0.06 : smart && R.vert ? 0.5 + 0.5 * skill + gauss(r) * 0.09 : 0.35 + 0.6 * skill + gauss(r) * 0.12;
+    return { inp: clampInput({ aim: aim, power: power, spin: clamp(spin, 0, 1), half: half }) };
+  }
+  function digest(M) { return hash(M.seq + '|' + M.turn + '|' + M.pend.join(',') + '|' + M.king.up + '|' + M.outs + '|' + M.kubbs.map(function (k) { return k.id + ':' + Math.round(k.x * 1000) + ',' + Math.round(k.y * 1000) + (k.field ? 'f' : 'b') + (k.on ? '^' + k.on : ''); }).join(';')); }
+  function count(M) { return M.kubbs.length + M.pend[0] + M.pend[1]; }
+  /** One AI-v-AI game: returns the match. a, b: [skill, style] for side 0 and side 1. */
+  function playOut(o, a, b, log) {
+    var M = newMatch(o), k = 0;
+    while (!M.over && k < 900) { var me = M.turn === 0 ? a : b, p = plan(M, me[0], me[1]), res = M.phase === 'place' ? placeSim(M, p.place) : throwSim(M, p.inp); if (log) log.push(res); apply(M, res); k++; }
+    return M;
+  }
+
+  function selfTest() {
+    var out = [], ok = true;
+    function check(name, cond) { out.push((cond ? 'ok   ' : 'FAIL ') + name); if (!cond) ok = false; }
+    var M = newMatch({ n: 5, seed: 7 });
+    check('setup: 5 baseline kubbs a side, the king in the middle', standing(M, 0).length === 5 && standing(M, 1).length === 5 && M.king.up && M.king.y === 4);
+    check('setup: kubbs spread evenly across the baseline', M.kubbs[0].x === -1.667 && M.kubbs[4].x === 1.667);
+    var a = throwSim(M, { aim: 0.1, power: 0.7, spin: 0.8 }), b = throwSim(M, { aim: 0.1, power: 0.7, spin: 0.8 });
+    check('determinism: the same match + input gives the same baton', JSON.stringify(a) === JSON.stringify(b));
+    var M2 = newMatch({ n: 5, seed: 8 }), c = throwSim(M2, { aim: 0.1, power: 0.7, spin: 0.8 });
+    check('determinism: another seed gives another wobble', c.L[0] !== a.L[0] || c.L[1] !== a.L[1]);
+    // a clean baton at a lone kubb nearly always fells it
+    var hits = 0; for (var i = 0; i < 300; i++) { var m = newMatch({ n: 1, seed: 100 + i }); var r = throwSim(m, { aim: 0, power: (8.12 - 0.5) / 10, spin: 0.85 }); if (r.top.length) hits++; }
+    check('physics: a clean throw at a lone kubb fells it most times (' + hits + '/300)', hits > 170);
+    var hh = 0; for (i = 0; i < 300; i++) { m = newMatch({ n: 1, seed: 100 + i }); r = throwSim(m, { aim: 0, power: (8.12 - 0.5) / 10, spin: 0 }); if (r.top.length) hh++; }
+    check('physics: a helicopter throw is worse (' + hh + '/300)', hh < hits);
+    // the vertical throw (rakt): straighter, so it fells more of the same kubb
+    var vv = 0, sp = 0; for (i = 0; i < 300; i++) { m = newMatch({ n: 1, seed: 100 + i, rules: { vert: 1 } }); r = throwSim(m, { aim: 0, power: (8.12 - 0.5) / 10, spin: 0.95 }); if (r.top.length) vv++; if (r.v) sp++; }
+    var nv = 0; for (i = 0; i < 300; i++) { m = newMatch({ n: 1, seed: 100 + i }); r = throwSim(m, { aim: 0, power: (8.12 - 0.5) / 10, spin: 0.95 }); if (r.top.length) nv++; }
+    check('technique: a vertical (rakt) baton fells more than the same release without the rule (' + vv + ' v ' + nv + '/300)', vv > nv && sp === 300);
+    // kubbs are conserved, with every rule on
+    var all = { vert: 1, tower: 1, inkast: 1, raise: 1, ground: 1, half: 1 };
+    m = newMatch({ n: 4, seed: 3, rules: all }); var steps = 0;
+    while (!m.over && steps < 600) { var p = plan(m, 0.6, steps % 2 ? 'tactician' : 'driller'); if (m.phase === 'place') apply(m, placeSim(m, p.place)); else apply(m, throwSim(m, p.inp)); steps++; if (count(m) !== 8) break; }
+    check('rules: kubbs are never lost or made, every rule on (' + count(m) + ' of 8 after ' + steps + ' actions)', count(m) === 8);
+    check('rules: an AI v AI game ends with a winner', m.over && (m.winner === 0 || m.winner === 1));
+    // field kubbs first
+    m = newMatch({ n: 1, seed: 5 }); m.kubbs.push({ id: 'f1', x: 1.5, y: 6, half: 1, field: true, up: true });
+    var base1 = m.kubbs[1];
+    var sim = null; for (i = 0; i < 200 && !(sim && sim.raised.length); i++) { m.seed = 900 + i; sim = throwSim(m, { aim: 0, power: (8.12 - 0.5) / 10, spin: 1 }); }
+    check('rules: a baseline kubb hit while a field kubb stands is stood up again', sim.raised.indexOf(base1.id) >= 0 && sim.top.indexOf(base1.id) < 0);
+    // the king
+    m = newMatch({ n: 1, seed: 11 }); var rr = { t: 'thr', s: 0, seq: 0, inp: {}, top: [], raised: [], king: 1 };
+    applyThrow(m, rr); check('rules: the king hit early loses the game', m.over && m.winner === 1 && m.why === 'king-early');
+    m = newMatch({ n: 1, seed: 12 }); m.kubbs = m.kubbs.filter(function (k) { return k.half === 0; });
+    var kw = 0; for (i = 0; i < 100; i++) { m.seed = 300 + i; if (throwSim(m, { aim: 0, power: (4.1 - 0.5) / 10, spin: 1 }).king === 2) kw++; }
+    check('rules: with their half cleared, the king from the baseline wins (' + kw + '/100)', kw > 50);
+    // the half-line king shot: closer, but only a vertical baton counts
+    m = newMatch({ n: 1, seed: 12, rules: { vert: 1, half: 1 } }); m.kubbs = m.kubbs.filter(function (k) { return k.half === 0; });
+    var hk = 0, fo = 0; for (i = 0; i < 100; i++) { m.seed = 300 + i; r = throwSim(m, { aim: 0, power: (2.1 - 0.5) / LOB, spin: 0.97, half: 1 }); if (r.king === 2) hk++; if (throwSim(m, { aim: 0, power: (2.1 - 0.5) / LOB, spin: 0.7, half: 1 }).foul) fo++; }
+    check('technique: the half-line king shot (' + hk + '/100) beats the baseline (' + kw + '/100) and a non-vertical one is a foul (' + fo + '/100)', hk > kw && fo === 100 && r.o[1] === 2);
+    var mf = clone(m); applyThrow(mf, throwSim(mf, { aim: 0, power: 0.16, spin: 0.7, half: 1 }));
+    check('technique: a foul ends the turn, the king stands', mf.turn === 1 && mf.king.up && mf.fouls[0] === 1);
+    m = newMatch({ n: 1, seed: 12, rules: { vert: 1, half: 1 } }); r = throwSim(m, { aim: 0, power: 0.5, spin: 1, half: 1 });
+    check('technique: no half-line shot while their kubbs stand', r.h === 0 && r.o[1] === 0);
+    // knocked kubbs are thrown into the other half, then become field kubbs
+    m = newMatch({ n: 2, seed: 13 }); applyThrow(m, { t: 'thr', s: 0, seq: 0, top: [m.kubbs[2].id], raised: [], king: 0 });
+    check('rules: a felled kubb waits to be thrown by its side', m.pend[1] === 1 && standing(m, 1).length === 1);
+    while (m.turn === 0) applyThrow(m, { t: 'thr', s: 0, seq: m.seq, top: [], raised: [], king: 0 });
+    check('rules: after six batons the other side places first', m.turn === 1 && m.phase === 'place' && m.batons === 6);
+    var pl = placeSim(m, [0.3, 9]); check('rules: a placed kubb lands in the other half, inside the field', pl.at[1] < 4 && pl.at[1] >= 0.3 && Math.abs(pl.at[0]) <= 2.4);
+    applyPlace(m, pl); check('rules: then it stands as a field kubb in that half', standing(m, 0, true).length === 1 && m.phase === 'throw');
+    while (m.turn === 1) applyThrow(m, { t: 'thr', s: 1, seq: m.seq, top: [], raised: [], king: 0 });
+    check('rules: a field kubb left standing moves the other side up to its line', m.turn === 0 && m.line[0] === pl.at[1] && origin(m, 0) === pl.at[1]);
+    // the double
+    var dbl = 0; for (i = 0; i < 200; i++) { m = newMatch({ n: 1, seed: 40 + i }); m.kubbs.push({ id: 'a', x: 0, y: 5, half: 1, field: true, up: true }, { id: 'b', x: 0.075, y: 5, half: 1, field: true, up: true }); r = throwSim(m, { aim: 0, power: 4.62 / 10, spin: 1 }); if (r.top.length >= 2) dbl++; }
+    check('physics: two kubbs side by side often fall to one baton (' + dbl + '/200)', dbl > 40);
+    // the drill: a tower falls together
+    var tw = 0, tb = 0; for (i = 0; i < 200; i++) { m = newMatch({ n: 1, seed: 40 + i, rules: { tower: 1 } }); m.kubbs.push({ id: 'a', x: 0, y: 5, half: 1, field: true, up: true }, { id: 'b', x: 0, y: 5, half: 1, field: true, up: true, on: 'a' }); r = throwSim(m, { aim: 0, power: 4.62 / 10, spin: 1 }); if (r.top.length >= 2) tw++; if (r.top.length) tb++; }
+    check('technique: a drilled tower falls to one baton with its base (' + tw + ' of ' + tb + ')', tb > 100 && tw >= tb * 0.85);
+    var on = 0; for (i = 0; i < 200; i++) { m = newMatch({ n: 1, seed: 60 + i, rules: { tower: 1 } }); m.turn = 0; m.phase = 'place'; m.pend[0] = 1; m.kubbs.push({ id: 'a', x: 0.4, y: 5.2, half: 1, field: true, up: true }); var ps = placeSim(m, [0.4, 5.2, 1]); if (ps.on === 'a') on++; }
+    check('technique: a clean inkast aimed onto a field kubb drills a tower often (' + on + '/200)', on > 50 && on < 200);
+    // the inkast: out, again, then a penalty kubb
+    m = newMatch({ n: 1, seed: 70, rules: { inkast: 1 } }); m.turn = 0; m.phase = 'place'; m.pend[0] = 1;
+    var o1 = null; for (i = 0; i < 400 && !(o1 && o1.out); i++) { m.seed = 70 + i; o1 = placeSim(m, [0, 4.16, 0]); }
+    applyPlace(m, o1); var o2 = null; for (i = 0; i < 400 && !(o2 && o2.pen); i++) { m.seed = 500 + i; o2 = placeSim(m, [0, 4.16, 0]); }
+    check('rules (act 2): an inkast short of the middle line is thrown again', !!o1.out && m.pend[0] === 1 && m.phase === 'place' && m.outs === 1);
+    applyPlace(m, o2);
+    check('rules (act 2): out twice is a penalty kubb the defender stands far back', !!o2.pen && m.pens[0] === 1 && m.pend[0] === 0 && o2.at[1] >= 5.2 && m.outs === 0);
+    // the raise: side-by-side kubbs are stood apart, a tower is not
+    m = newMatch({ n: 1, seed: 80, rules: { raise: 1 } }); m.turn = 0; m.phase = 'place'; m.pend[0] = 2; m.kubbs.push({ id: 'a', x: 0.5, y: 5.5, half: 1, field: true, up: true });
+    var rz = placeSim(m, [0.575, 5.5, 1]); check('rules (act 2): the defender raises a kubb a kubb-length from its neighbour', !!rz.rz && nearKubb(m, 1, rz.at[0], rz.at[1]) > nearKubb(m, 1, rz.ld[0], rz.ld[1]));
+    // the weak side: penalty kubbs go where the thrower misses
+    m = newMatch({ n: 1, seed: 81, rules: { inkast: 1 } }); m.habit[0] = [9, 10, 2, 10];
+    var spot = penaltySpot(m, 0); check('thinking: a penalty kubb goes to the thrower\'s weak side (right here: x ' + spot[0] + ')', spot[0] > 0);
+    // the ground: deterministic, and a vertical baton rolls less
+    m = newMatch({ n: 2, seed: 90, rules: { ground: 1, vert: 1 } });
+    var g1 = throwSim(m, { aim: 0.05, power: 0.6, spin: 0.7 }), g2 = throwSim(clone(m), { aim: 0.05, power: 0.6, spin: 0.7 }), sh = 0, sv = 0;
+    m.bumps.forEach(function (bb) { var a1 = bumpShift(m, bb.x + bb.r * 0.6, bb.y, 0), a2 = bumpShift(m, bb.x + bb.r * 0.6, bb.y, 1); sh += hyp(a1[0], a1[1]); sv += hyp(a2[0], a2[1]); });
+    check('rules (act 3): the bumps are seeded, the same on every page, and roll a non-vertical baton more (' + r3(sh) + ' v ' + r3(sv) + ' m)', m.bumps.length === 8 && JSON.stringify(g1) === JSON.stringify(g2) && sh > sv * 2 && JSON.stringify(newMatch({ n: 2, seed: 90, rules: { ground: 1 } }).bumps) === JSON.stringify(m.bumps));
+    // replay: a whole game from its log reaches the same end on a second "page"
+    var log = []; m = playOut({ n: 4, seed: 4242, wind: 0.4, gust: 0.6, rules: all }, [0.7, 'tactician'], [0.5, 'driller'], log);
+    var m3 = newMatch({ n: 4, seed: 4242, wind: 0.4, gust: 0.6, rules: all }); log.forEach(function (x) { apply(m3, JSON.parse(JSON.stringify(x))); });
+    check('determinism: a replayed game (' + log.length + ' actions) ends with the same digest and winner', digest(m3) === digest(m) && m3.winner === m.winner && m.over);
+    check('wire: inputs are clamped', JSON.stringify(clampInput({ aim: 9, power: -1, spin: 2, half: 'x' })) === '{"aim":0.45,"power":0,"spin":1,"half":1}');
+    return { ok: ok, lines: out };
+  }
+  return { HW: HW, LEN: LEN, MID: MID, KW: KW, KH: KH, KINGW: KINGW, KINGH: KINGH, BATON: BATON, BATONS: BATONS, VERT: VERT, HALF: HALF, REACH: REACH, LOB: LOB, mulberry: mulberry, hash: hash, rngFor: rngFor, gauss: gauss,
+    newMatch: newMatch, clone: clone, standing: standing, origin: origin, originFor: originFor, halfOK: halfOK, windAt: windAt, clampInput: clampInput, aimPoint: aimPoint, throwSim: throwSim, applyThrow: applyThrow,
+    placeSim: placeSim, applyPlace: applyPlace, apply: apply, placeZone: placeZone, plan: plan, digest: digest, count: count, base: base, dirOf: dirOf, find: find, towerOn: towerOn,
+    heightAt: heightAt, bumpShift: bumpShift, weakSide: weakSide, penaltySpot: penaltySpot, playOut: playOut, rulesOf: rulesOf, selfTest: selfTest };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = Core;
+/*CORE-END*/
+
+  // ══ Basics ═════════════════════════════════════════════════════════════════════════════════════════════════
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  var DEVHOST = /^(dev\.|localhost$|127\.)/.test(location.hostname);
+  var TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+  var RM_Q = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  var TAU = Math.PI * 2;
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function ease(t) { return t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t); }
+  var toastT = 0;
+  function toast(t, ms) { var e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { e.classList.remove('on'); }, ms || 2200); }
+  function say(t) { $('live').textContent = t; }
+  var bigT = 0;
+  function big(text, sub, ms) { var e = $('big'); e.textContent = text; if (sub) e.appendChild(el('small', null, sub)); e.classList.add('on'); clearTimeout(bigT); bigT = setTimeout(function () { e.classList.remove('on'); }, ms || 1400); say(text + (sub ? ' — ' + sub : '')); }
+  function todayKey(off) { var d = new Date(Date.now() - (off || 0) * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+  // ══ The save: tm.kubb.v1 ═══════════════════════════════════════════════════════════════════════════════════
+  var SKEY = 'tm.' + GAME_ID + '.v1';
+  function fresh() {
+    return { v: 1, clears: {}, best: {}, horses: {},
+      taught: {}, causes: {}, settings: { sound: true, motion: 'auto', tips: true },
+      daily: { date: '', won: false, streak: 0, wins: 0, last: '' }, top: { wins: 0, played: 0 }, last: null, deathLog: 0,
+      stars: {}, drills: {} };   // advanced (2026-10-29): stars per mission 0–3, the training ground's bests
+  }
+  function load() {
+    var d = fresh(), j = null;
+    try { j = JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (e) { j = null; }
+    if (j && j.v === 1) Object.keys(d).forEach(function (k) { if (j[k] != null) d[k] = (typeof d[k] === 'object' && d[k] && !Array.isArray(d[k]) && typeof j[k] === 'object') ? Object.assign(d[k], j[k]) : j[k]; });
+    return d;
+  }
+  var SV = load();
+  function save() { try { localStorage.setItem(SKEY, JSON.stringify(SV)); } catch (e) { /* private mode: the session keeps it */ } }
+  function reduced() { return SV.settings.motion === 'reduced' || (SV.settings.motion !== 'full' && RM_Q.matches); }
+
+  // ══ The season: 3 acts × 5 missions (each rival's Dala horse is the keepsake) ══════════════════════════════
+  var ACTS = [
+    { name: 'Midsummer Meadow', place: 'Leksand, Dalarna', kind: 'meadow', n: 3, wind: 0, gust: 0.3 },
+    { name: 'Gotland Beach', place: 'the island of the kubb championship', kind: 'beach', n: 3, wind: 0.9, gust: 0.6 },
+    { name: 'Winter Field · Vinterkubb', place: 'Östersund, Jämtland, under the lanterns', kind: 'winter', n: 4, wind: -0.3, gust: 0.5 },
+  ];
+  //  name, rival, the challenge, house skill, horse colour
+  var MS = [
+    ['Midsommarafton', 'Kusin Linnea', 'Your first game: three kubbs, then the king.', 0.10, '#c8332b'],
+    ['The Strawberry Bet', 'Morbror Bosse', 'Bosse bet the strawberries. Field kubbs first!', 0.18, '#2b5c8a'],
+    ['Round the Maypole', 'the Lindqvist twins', 'They place their kubbs far apart. Make yours a pair.', 0.26, '#e8c547'],
+    ['Birch Leaves', 'Göran next door', 'Göran steps up to every field kubb you leave.', 0.33, '#3e7a3a'],
+    ['Leksand Village Final', 'Astrid from Tällberg', 'Final · the village champion, thirty summers running.', 0.42, '#f3efe4'],
+    ['The Ferry to Visby', 'the ferry crew', 'The sea wind: watch the flag, and aim into it.', 0.40, '#1f6f8b'],
+    ['Raukar', 'the Fårö stack-climbers', 'Limestone sea stacks, and a wind that gusts.', 0.45, '#9a9387'],
+    ['Sea Breeze', 'Sandvik Kubbklubb', 'A strong breeze off the water. Aim into it.', 0.50, '#e07b2a'],
+    ['The Ring Wall', 'the Visby wall knights', 'Medieval walls, modern batons.', 0.54, '#6a3a8c'],
+    ['Gotland Open Final', 'Lag Hejdeby', 'Final · the island\'s best team, on the championship sand.', 0.60, '#c8332b'],
+    ['Lucia Lanterns', 'the Lucia choir', 'Four kubbs a side now, on snow. The lanterns are lit.', 0.58, '#f6f1e2'],
+    ['Storsjön Ice', 'the ice fishers', 'Frozen lake, gusting wind.', 0.62, '#3a7fc1'],
+    ['Northern Lights', 'Norrsken Kubb', 'The aurora over the field. Keep your nerve.', 0.66, '#2fae7c'],
+    ['Semi-final', 'Lag Åre', 'Win and you play for the crown.', 0.70, '#20402e'],
+    ['The Kubb King', 'Olof the Unbeaten', 'Final · nobody has felled Olof\'s king in eleven winters.', 0.76, '#e8c547'],
+  ];
+  function actIdx(n) { return Math.min(2, Math.floor((Math.max(1, n) - 1) / 5)); }
+  function actOf(n) { return ACTS[actIdx(n)]; }
+  // ── Advanced (2026-10-29): what each mission adds, its rules, the house's style, and its stars ──
+  //  What is new on the card (missions 6–15 each add something)
+  var NEW = ['', 'New: the Rakt! throw — let go in the gold core of the ring', '', '', '', 'New: the inkast — short or out twice is a penalty kubb', 'New: the raise — they stand your kubbs apart; drill towers',
+    'The rival drills towers too: clear them early', 'New: the wall knights read your weak side', 'Final: every act 2 rule, a sharper rival', 'New: bumpy snow rolls the baton; the half-line king shot',
+    'Gusts and bumps together', 'Norrsken read the bumps: so must you', 'Lag Åre take the half-line shot too', 'Final: Olof adapts to everything you repeat'];
+  /** Which rules a mission plays with: a technique unlocks per act (Rakt! from 2, the drill from 6, the half-line king from 11). */
+  function rulesFor(n) { return { vert: n >= 2 ? 1 : 0, tower: n >= 6 ? 1 : 0, inkast: n >= 6 ? 1 : 0, raise: n >= 7 ? 1 : 0, ground: n >= 11 ? 1 : 0, half: n >= 11 ? 1 : 0 }; }
+  var STYLE = ['friendly', 'driller', 'tactician'], STYLE_NAME = { friendly: 'friendly', driller: 'the driller', tactician: 'the tactician' };
+  //  ★★ a skill target, ★★★ a mastery target (★★★ needs ★★ too). s = the game's stats.
+  function S2(t, f) { return { t: t, f: f }; }
+  var STARS = [
+    [S2('Win in 12 batons or fewer', function (s) { return s.thrown <= 12; }), S2('All 3 baseline kubbs still standing, a clean game', function (s) { return s.baseLeft >= 3 && s.clean; })],
+    [S2('One Rakt! fell (a vertical baton)', function (s) { return s.vert >= 1; }), S2('Three Rakt! fells, 12 batons or fewer, clean', function (s) { return s.vert >= 3 && s.thrown <= 12 && s.clean; })],
+    [S2('A double — Skål!', function (s) { return s.doubles >= 1; }), S2('Two doubles, a clean game', function (s) { return s.doubles >= 2 && s.clean; })],
+    [S2('Never leave a field kubb standing at a turn\'s end', function (s) { return s.leftField === 0; }), S2('And 12 batons or fewer, clean', function (s) { return s.leftField === 0 && s.thrown <= 12 && s.clean; })],
+    [S2('Win with 2 baseline kubbs standing', function (s) { return s.baseLeft >= 2; }), S2('Three Rakt! and a double, clean', function (s) { return s.vert >= 3 && s.doubles >= 1 && s.clean; })],
+    [S2('No penalty kubbs', function (s) { return s.pens === 0; }), S2('Every inkast in first time, 14 batons or fewer, clean', function (s) { return s.outs === 0 && s.thrown <= 14 && s.clean; })],
+    [S2('Drill a tower', function (s) { return s.towers >= 1; }), S2('Fell a tower with one baton, clean', function (s) { return s.towerFells >= 1 && s.clean; })],
+    [S2('Win in 14 batons or fewer', function (s) { return s.thrown <= 14; }), S2('Two doubles and three Rakt!, clean', function (s) { return s.doubles >= 2 && s.vert >= 3 && s.clean; })],
+    [S2('Win with 2 baseline kubbs standing', function (s) { return s.baseLeft >= 2; }), S2('A tower drilled and felled, no penalty kubb, clean', function (s) { return s.towers >= 1 && s.towerFells >= 1 && s.pens === 0 && s.clean; })],
+    [S2('Never knock a baseline kubb back up', function (s) { return s.raisedMine === 0; }), S2('14 batons or fewer and a tower felled, clean', function (s) { return s.thrown <= 14 && s.towerFells >= 1 && s.clean; })],
+    [S2('Three Rakt! fells on the bumpy snow', function (s) { return s.vert >= 3; }), S2('Win with the half-line king shot, clean', function (s) { return s.half && s.clean; })],
+    [S2('Win in 18 batons or fewer', function (s) { return s.thrown <= 18; }), S2('Two doubles, a clean game', function (s) { return s.doubles >= 2 && s.clean; })],
+    [S2('Win with the half-line king shot', function (s) { return s.half; }), S2('And 18 batons or fewer, clean', function (s) { return s.half && s.thrown <= 18 && s.clean; })],
+    [S2('Win with 3 baseline kubbs standing', function (s) { return s.baseLeft >= 3; }), S2('And the half-line king shot, clean', function (s) { return s.baseLeft >= 3 && s.half && s.clean; })],
+    [S2('A tower felled and three Rakt!', function (s) { return s.towerFells >= 1 && s.vert >= 3; }), S2('The half-line king shot, 3 kubbs standing, clean', function (s) { return s.half && s.baseLeft >= 3 && s.clean; })],
+  ];
+  function starsOf(n, st) { var d = STARS[n - 1]; if (!d) return 1; var two = d[0].f(st); return two ? (d[1].f(st) ? 3 : 2) : 1; }
+  function starStr(k) { return '★★★'.slice(0, k) + '☆☆☆'.slice(0, 3 - k); }
+  //  The rank comes from the stars: 0–14 · 15–29 · 30–44 · 45
+  var RANKS = ['Nybörjare — newcomer', 'Pinnkastare — baton thrower', 'Kubbmästare — kubb master', 'Kubbkung — the Kubb King'];
+  function totalStars() { var k = 0; for (var n = 1; n <= 15; n++) k += Math.min(3, SV.stars[n] | 0); return k; }
+  function clearedCount() { var k = 0; for (var n = 1; n <= 15; n++) if (SV.clears[n] > 0) k++; return k; }
+  function nextMission() { for (var n = 1; n <= 15; n++) if (!(SV.clears[n] > 0)) return n; return 15; }
+  function rank() { var c = totalStars(); return RANKS[c >= 45 ? 3 : Math.floor(c / 15)]; }
+  function techLevel() { var n = nextMission(); if (clearedCount() >= 15) n = 16; return { vert: n >= 2 || SV.clears[1] > 0, tower: n >= 6, half: n >= 11 }; }
+  function unlocked(n) { return n === 1 || SV.clears[n - 1] > 0 || SV.clears[n] > 0; }
+
+  // ══ The voice: Farmor Ingrid, at Midsummer — warm, dry, competitive ═══════════════════════════════════════
+  var FI = {
+    hello: ['Hej hej! Come, the kubbs are standing.', 'Glad midsommar! Grab a baton, älskling.', 'The strawberries can wait. Kubb first.'],
+    good: ['Bra kastat! — well thrown!', 'Pang! Down it goes.', 'That one heard you coming.', 'Like your grandfather, that throw.'],
+    miss: ['Lagom — not too much, not too little. Again.', 'The grass liked that one.', 'Breathe. End over end.', 'Close. The kubb felt the wind.'],
+    heli: ['A helicopter! Let go on green — end over end.', 'It spun flat. Wait for the green ring.'],
+    raised: ['Field kubbs first, älskling — that one stands up again.'],
+    kingEarly: ['Oj oj oj — not the king! Not yet!'],
+    win: ['Now we have fika.', 'The king bows to you today.', 'Skål! Put the kettle on.', 'Your great-grandfather would be proud.'],
+    lose: ['They had the luck of the trolls. Again?', 'Never mind — kanelbulle, and then revenge.', 'Kubb is long. So is summer.'],
+    place: ['Throw it onto their half. Side by side with the last one — one baton, two kubbs.', 'Close to the middle line, and together.'],
+    king: ['Every kubb is down. Now, the king — from the baseline.'],
+  };
+  var callT = 0;
+  function call(t, hold) { var e = $('callTxt'); if (e.textContent !== t) e.textContent = t; callT = hold || 0; }
+
+  // ══ Sound: WebAudio, all synthesised — the whup of the baton, the clonk of birch, the meadow, the cheer ════
+  var AC = null, MASTER = null, WHITE = null, BROWN = null, AMB = null, muted = false;
+  function audio() {
+    if (AC) { if (AC.state === 'suspended') AC.resume().catch(function () {}); return AC; }
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+    MASTER = AC.createGain(); MASTER.gain.value = soundOn() ? 0.8 : 0; MASTER.connect(AC.destination);
+    var n = AC.sampleRate * 2, wb = AC.createBuffer(1, n, AC.sampleRate), bb = AC.createBuffer(1, n, AC.sampleRate), w = wb.getChannelData(0), b = bb.getChannelData(0), last = 0;
+    for (var i = 0; i < n; i++) { w[i] = Math.random() * 2 - 1; last = (last + 0.02 * w[i]) / 1.02; b[i] = last * 3.5; }
+    WHITE = wb; BROWN = bb;
+    var s = AC.createBufferSource(); s.buffer = BROWN; s.loop = true; var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 400; var g = AC.createGain(); g.gain.value = 0.035; s.connect(fl); fl.connect(g); g.connect(MASTER); s.start(); AMB = g;
+    return AC;
+  }
+  function soundOn() { return SV.settings.sound && !muted; }
+  function setVol() { if (MASTER) MASTER.gain.setTargetAtTime(soundOn() ? 0.8 : 0, AC.currentTime, 0.05); }
+  function burst(t, dur, type, f, q, peak, buf) {
+    t = Math.max(t, AC.currentTime);
+    var s = AC.createBufferSource(); s.buffer = buf || WHITE; var fl = AC.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(fl); fl.connect(g); g.connect(MASTER); s.start(t, Math.random()); s.stop(t + dur + 0.05); return fl;
+  }
+  function tone(t, dur, type, f0, f1, peak) {
+    t = Math.max(t, AC.currentTime);
+    var o = AC.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + dur + 0.05);
+  }
+  /** A voice: a sawtooth throat through two formants — the crowd's "Skål!". */
+  function voice(t, syl, gain, shift) {
+    t = Math.max(t, AC.currentTime + 0.04);
+    syl.forEach(function (s) {
+      var o = AC.createOscillator(); o.type = 'sawtooth';
+      o.frequency.setValueAtTime(s.f[0] * shift, t); o.frequency.linearRampToValueAtTime(s.f[1] * shift, t + s.d);
+      var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.03); g.gain.setValueAtTime(gain, t + s.d * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + s.d);
+      [[s.F1, 7], [s.F2, 9]].forEach(function (F, k) {
+        var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = F[1];
+        bp.frequency.setValueAtTime(F[0][0], t); bp.frequency.linearRampToValueAtTime(F[0][1], t + s.d);
+        var fg = AC.createGain(); fg.gain.value = k === 0 ? 1 : 0.7; o.connect(bp); bp.connect(fg); fg.connect(g);
+      });
+      g.connect(MASTER); o.start(t); o.stop(t + s.d + 0.05);
+      if (s.h) burst(t - 0.03, 0.12, 'highpass', 3500, 0.8, gain * 1.2);
+      t += s.d + (s.gap || 0);
+    });
+  }
+  // "Små grodorna", the Midsummer frog dance — a folk tune everyone in Sweden dances round the maypole
+  var GRODOR = [[67, .25], [72, .25], [72, .25], [72, .25], [71, .25], [72, .25], [74, .5], [71, .25], [74, .25], [74, .25], [74, .25], [72, .25], [71, .25], [72, .5]];
+  var SFX = {
+    whup: function (k) { if (!audio()) return; var t = AC.currentTime; var f = burst(t, 0.09, 'bandpass', 700 + k * 120, 2.2, 0.14); f.frequency.exponentialRampToValueAtTime(1800, t + 0.08); },
+    swing: function () { if (!audio()) return; var t = AC.currentTime, f = burst(t, 0.28, 'bandpass', 500, 1.2, 0.16); f.frequency.exponentialRampToValueAtTime(2200, t + 0.25); },
+    clonk: function (v) { if (!audio()) return; var t = AC.currentTime; v = clamp(v || 1, 0.2, 1.2); tone(t, 0.16, 'triangle', 620, 540, 0.42 * v); tone(t, 0.12, 'sine', 980, 900, 0.22 * v); burst(t, 0.03, 'bandpass', 2600, 1.6, 0.5 * v); tone(t + 0.09, 0.22, 'sine', 160, 110, 0.22 * v); },
+    thud: function () { if (!audio()) return; var t = AC.currentTime; tone(t, 0.14, 'sine', 120, 70, 0.32); burst(t, 0.1, 'lowpass', 500, 0.8, 0.22, BROWN); },
+    king: function () { if (!audio()) return; var t = AC.currentTime; tone(t, 0.4, 'triangle', 330, 300, 0.4); tone(t, 0.6, 'sine', 196, 150, 0.35); burst(t, 0.05, 'bandpass', 1800, 1.4, 0.6); },
+    ui: function () { if (!audio()) return; tone(AC.currentTime, 0.06, 'triangle', 820, 1100, 0.07); },
+    deny: function () { if (!audio()) return; tone(AC.currentTime, 0.12, 'square', 220, 160, 0.05); },
+    tick: function () { if (!audio()) return; tone(AC.currentTime, 0.03, 'sine', 1500, 1500, 0.04); },
+    skal: function () {   // "SKÅÅL!" — the family on the blanket, glasses up
+      if (!audio()) return; var t = AC.currentTime + 0.02, i;
+      var syl = [{ d: 0.1, f: [210, 230], F1: [400, 420], F2: [2200, 2000], h: 1 }, { d: 0.6, f: [240, 200], F1: [560, 520], F2: [880, 820] }];
+      voice(t, syl, 0.3, 1); voice(t + 0.03, syl, 0.18, 1.45); voice(t + 0.05, syl, 0.12, 0.8);
+      burst(t, 1.6, 'bandpass', 1500, 0.4, 0.12);
+      for (i = 0; i < 4; i++) tone(t + 0.62 + i * 0.05, 0.5, 'sine', 2600 + i * 300, 2600 + i * 300, 0.04);   // glasses clink
+      for (i = 0; i < 18; i++) burst(t + 0.2 + Math.random() * 1.1, 0.03, 'bandpass', 1800 + Math.random() * 1500, 1.4, 0.06 + Math.random() * 0.05);
+    },
+    clap: function () { if (!audio()) return; var t = AC.currentTime; for (var i = 0; i < 10; i++) burst(t + Math.random() * 0.9, 0.03, 'bandpass', 1900 + Math.random() * 1200, 1.4, 0.05 + Math.random() * 0.04); },
+    ohh: function () { if (!audio()) return; var t = AC.currentTime; for (var i = 0; i < 4; i++) voice(t + Math.random() * 0.1, [{ d: 0.9, f: [170 + Math.random() * 80, 120 + Math.random() * 40], F1: [480, 560], F2: [800, 850] }], 0.05, 1); },
+    tune: function () {   // the fiddle (a sawtooth with vibrato) plays the frog dance
+      if (!audio()) return; var t = AC.currentTime + 0.05;
+      GRODOR.forEach(function (n) {
+        var f = 440 * Math.pow(2, (n[0] - 69) / 12), o = AC.createOscillator(), v = AC.createOscillator(), vg = AC.createGain(), lp = AC.createBiquadFilter(), g = AC.createGain();
+        o.type = 'sawtooth'; o.frequency.value = f; v.frequency.value = 5.5; vg.gain.value = f * 0.008; v.connect(vg); vg.connect(o.frequency);
+        lp.type = 'lowpass'; lp.frequency.value = 2400; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.07, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + n[1] * 0.95);
+        o.connect(lp); lp.connect(g); g.connect(MASTER); o.start(t); v.start(t); o.stop(t + n[1]); v.stop(t + n[1]); t += n[1] * 0.92;
+      });
+    },
+    rakt: function () { if (!audio()) return; var t = AC.currentTime; tone(t, 0.18, 'sine', 1500, 2600, 0.09); tone(t + 0.05, 0.25, 'triangle', 880, 880, 0.08); },   // a clean whistle: straight as a birch
+    torn: function () { if (!audio()) return; var t = AC.currentTime; tone(t, 0.1, 'triangle', 560, 520, 0.3); tone(t + 0.12, 0.12, 'triangle', 760, 700, 0.3); burst(t + 0.12, 0.03, 'bandpass', 2600, 1.6, 0.35); },   // wood on wood, twice
+    bird: function () { if (!audio()) return; var t = AC.currentTime, f = 2600 + Math.random() * 1600; for (var i = 0; i < 3; i++) tone(t + i * 0.09, 0.07, 'sine', f, f * 1.3, 0.025); },
+  };
+
+
+  var RUN = null, SCENE = 'title';
+  // ══ The greeting: Farmor Ingrid on the title card ═══════════════════════════════════════════════════════════
+  function greet() {
+    var g = $('greet'); g.textContent = '';
+    var t = el('div'), cl = clearedCount(), d = new Date().getDate();
+    t.appendChild(document.createTextNode('Farmor Ingrid: “' + FI.hello[d % FI.hello.length] + '”'));
+    t.appendChild(el('small', null, rank() + ' · ' + cl + ' of 15 games won' + (SV.last ? ' · last: ' + SV.last.txt : '')));
+    g.appendChild(t);
+  }
+
+  // ══ Screens: one variable, setScene is the only way to change it ═════════════════════════════════════════════
+  var SCENES = { title: 'sc-title', missions: 'sc-missions', how: 'sc-how', settings: 'sc-settings', pause: 'sc-pause', results: 'sc-results', play: null };
+  var howT = 0;
+  function setScene(s) {
+    Object.keys(SCENES).forEach(function (k) { if (SCENES[k]) $(SCENES[k]).classList.toggle('on', k === s); });
+    SCENE = s;
+    $('back').classList.toggle('on', s === 'missions' || s === 'how' || s === 'settings' || s === 'results');
+    $('controlsCard').style.display = s === 'title' ? '' : 'none';
+    $('hud').classList.toggle('on', s === 'play' || s === 'pause');
+    $('topBtns').classList.toggle('on', s === 'play');
+    if (s !== 'play') $('tip').classList.remove('on');
+    clearInput();
+    if (s === 'title') paintTitle();
+    if (s === 'how') howT = 0;
+    var first = SCENES[s] && $(SCENES[s]).querySelector('button');
+    if (first && !TOUCH) first.focus({ preventScroll: true });
+  }
+  function goBack() {
+    if (SCENE === 'how' && RUN && RUN.howFromPause) { RUN.howFromPause = false; paintPause(); setScene('pause'); return; }
+    if (SCENE === 'play') { pause(); return; }
+    if (SCENE === 'pause') { resume(); return; }
+    if (SCENE === 'results') { RUN = null; setScene('title'); return; }
+    if (SCENE !== 'title') setScene('title');
+  }
+  $('back').onclick = goBack;
+
+  // ── The First Menu: one big Play button with progress, then one row of at most five, from one array ──
+  var ROW = [
+    { label: 'Missions', act: function () { openMissions(); } },
+    { label: 'How to play', act: function () { setScene('how'); } },
+    { label: 'Settings', act: function () { openSettings(); } },
+  ];
+  function paintTitle() {
+    var row = $('row5'); row.textContent = '';
+    ROW.filter(function (m) { return !m.when || m.when(); }).forEach(function (m) { var b = el('button', 'btn', m.label); b.setAttribute('role', 'menuitem'); b.onclick = function () { SFX.ui(); m.act(); }; row.appendChild(b); });
+    var pb = $('playBtn'), n = nextMission();
+    pb.textContent = '';
+    if (clearedCount() >= 15) { pb.appendChild(document.createTextNode('Play · Kungsspelet')); pb.appendChild(el('small', null, 'The King\'s Game — Farmor Ingrid herself, five kubbs')); }
+    else { pb.appendChild(document.createTextNode('Play · Mission ' + n + ' · ' + MS[n - 1][0])); pb.appendChild(el('small', null, 'vs ' + MS[n - 1][1] + ' · ' + actOf(n).name)); }
+    var rc = $('rankChip'); rc.textContent = ''; rc.appendChild(el('span', null, rank())); rc.appendChild(el('b', null, '★ ' + totalStars() + ' / 45'));
+    greet(); paintHorses();
+  }
+  $('playBtn').onclick = function () { audio(); SFX.ui(); if (clearedCount() >= 15) startRun('top', 16); else startRun('mission', nextMission()); };
+  function paintHorses() {
+    var cv = $('horsesCv'), r = cv.getBoundingClientRect(), d = devicePixelRatio || 1;
+    if (!r.width) return;
+    cv.width = r.width * d; cv.height = r.height * d;
+    var x = cv.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0);
+    var n = 0; for (var i = 1; i <= 15; i++) if (SV.horses[i]) n++;
+    $('horsesLbl').textContent = 'Dala horses ' + n + '/15';
+    var step = r.width / 15;
+    for (i = 1; i <= 15; i++) drawDala(x, step * (i - 0.5), r.height * 0.55, Math.min(step * 0.9, r.height * 0.9), MS[i - 1][4], !!SV.horses[i]);
+  }
+
+  // ── Missions: 15 cards in three rows of five, then the Backyard, the Daily and the top tier ──
+  function openMissions() {
+    var acts = $('acts'); acts.textContent = '';
+    ACTS.forEach(function (a, ai) {
+      var box = el('div', 'act'); box.appendChild(el('h3', null, 'Act ' + (ai + 1) + ' · ' + a.name + ' — ' + a.place + ' · ' + a.n + ' kubbs a side'));
+      var g = el('div', 'grid5');
+      for (var k = 1; k <= 5; k++) (function (n) {
+        var m = MS[n - 1], b = el('button', 'mc' + (k === 5 ? ' final' : '')), done = SV.clears[n] > 0, open = unlocked(n);
+        b.appendChild(el('b', null, n + ' · ' + m[0])); b.appendChild(el('span', null, 'vs ' + m[1]));
+        b.appendChild(el('span', 'st', done ? 'Won ×' + SV.clears[n] : open ? m[2] : 'Win mission ' + (n - 1) + ' first'));
+        if (NEW[n - 1]) b.appendChild(el('span', 'nw', NEW[n - 1]));
+        b.appendChild(el('span', 'sr3', starStr(Math.min(3, SV.stars[n] | 0)))); b.title = '★ win · ★★ ' + STARS[n - 1][0].t + ' · ★★★ ' + STARS[n - 1][1].t;
+        if (done) b.classList.add('done'); if (n === nextMission() && !done) b.classList.add('next');
+        if (!open) b.disabled = true;
+        b.onclick = function () { SFX.ui(); startRun('mission', n); };
+        g.appendChild(b);
+      })(ai * 5 + k);
+      box.appendChild(g); acts.appendChild(box);
+    });
+    var ex = $('extras'); ex.textContent = '';
+    var dly = SV.daily.date === todayKey();
+    [['The Backyard', 'Practice against little Elsa, as long as you like.', function () { startRun('practice', 0); }, true],
+     ['Daily · Last King', dly ? (SV.daily.won ? 'Felled today! Streak ' + SV.daily.streak : 'Tried today — back tomorrow') : 'Three batons, a seeded field: clear it and fell the king.', function () { startRun('daily', 0); }, !dly],
+     ['Kungsspelet', clearedCount() >= 15 ? 'Top tier: the King\'s Game vs Farmor Ingrid — five kubbs, every rule, the tactician at her sharpest. Wins ' + SV.top.wins : 'Opens after The Kubb King', function () { startRun('top', 16); }, clearedCount() >= 15]].forEach(function (e) {
+      var b = el('button', 'mc'); b.appendChild(el('b', null, e[0])); b.appendChild(el('span', null, e[1])); b.disabled = !e[3]; b.onclick = function () { SFX.ui(); e[2](); }; ex.appendChild(b);
+    });
+    var tg = $('training'); tg.textContent = ''; var tl = techLevel();
+    DRILLS.forEach(function (d, i) {
+      var open = tl[d.unlock], b = el('button', 'mc'); b.appendChild(el('b', null, d.name));
+      b.appendChild(el('span', null, open ? d.intro.split('.')[0] + '.' : 'Unlocks with ' + (d.unlock === 'vert' ? 'mission 2' : d.unlock === 'tower' ? 'mission 6' : 'mission 11')));
+      if (SV.drills['d' + i] != null) b.appendChild(el('span', 'rw', 'Best ' + SV.drills['d' + i] + ' of ' + d.tries));
+      b.disabled = !open; b.onclick = function () { SFX.ui(); startRun('drill', i); }; tg.appendChild(b);
+    });
+    setScene('missions');
+  }
+  function openSettings() {
+    var L = $('setList'); L.textContent = '';
+    function row(label, on, fn) { var l = el('label'), c = el('input'); c.type = 'checkbox'; c.checked = on; c.onchange = function () { fn(c.checked); save(); }; l.appendChild(el('span', null, label)); l.appendChild(c); L.appendChild(l); }
+    row('Sound', SV.settings.sound, function (v) { SV.settings.sound = v; setVol(); });
+    row('Reduced motion (no slow-motion, no camera moves)', reduced(), function (v) { SV.settings.motion = v ? 'reduced' : 'full'; document.body.classList.toggle('rm', v); });
+    row('Show tips again', SV.settings.tips, function (v) { SV.settings.tips = v; if (v) SV.taught = {}; });
+    setScene('settings');
+  }
+  function paintPause() {
+    var L = $('pauseList'); L.textContent = '';
+    [['Resume', function () { resume(); }, 'red'], ['How to play', function () { RUN.howFromPause = true; setScene('how'); }],
+     ['Leave the game', function () { quitRun(); }]].forEach(function (e) { var b = el('button', 'btn' + (e[2] ? ' red' : ''), e[0]); b.onclick = e[1]; L.appendChild(b); });
+  }
+
+  // ══ The game ═══════════════════════════════════════════════════════════════════════════════════════════════
+  var HOOK_SPEED = 1;
+  function specOf(kind, n) {
+    var tl = techLevel(), mine = { vert: tl.vert ? 1 : 0, tower: tl.tower ? 1 : 0, half: tl.half ? 1 : 0 };
+    if (kind === 'mission') { var m = MS[n - 1], a = actOf(n); return { name: m[0], rival: m[1], skill: m[3], n: a.n, act: actIdx(n), wind: a.wind, gust: a.gust, final: n % 5 === 0, rules: rulesFor(n), style: STYLE[actIdx(n)] }; }
+    if (kind === 'top') return { name: 'Kungsspelet', rival: 'Farmor Ingrid', skill: 0.9, n: 5, act: 2, wind: 0.4, gust: 1.1, final: true, rules: rulesFor(15), style: 'tactician' };
+    if (kind === 'daily') return { name: 'Daily · Last King', rival: 'the Daily', skill: 0, n: 2, act: hashDay() % 3, wind: 0, gust: 0.6, final: false, rules: mine, style: 'friendly' };
+    if (kind === 'practice') return { name: 'The Backyard', rival: 'little Elsa', skill: 0.04, n: 3, act: 0, wind: 0, gust: 0.2, final: false, rules: mine, style: 'friendly' };
+    if (kind === 'drill') return { name: DRILLS[n].name, rival: 'Farmor\'s stopwatch', skill: 0, n: 1, act: n === 2 ? 2 : 0, wind: 0, gust: 0, final: false, rules: DRILLS[n].rules, style: 'friendly' };
+  }
+  function hashDay() { return Core.hash('kubb-daily-' + todayKey()); }
+  // ── The training ground: one short drill per technique, with feedback on every try ──
+  function fieldK(M, x, y) { M.kubbs.push({ id: 'k' + (M.nid++), x: x, y: y, half: 1, field: true, up: true }); }
+  var DRILLS = [
+    { name: 'Rakt! drill', unlock: 'vert', tries: 10, rules: { vert: 1 }, intro: 'Ten batons. Let go in the gold core of the ring — I will tell you how many milliseconds you missed it by.',
+      setup: function (M) { M.kubbs = M.kubbs.filter(function (k) { return k.half === 0; }); [[-1.2, 5.4], [0.6, 6.1], [1.5, 5.2], [-0.3, 6.8], [0.1, 5.8]].forEach(function (p) { fieldK(M, p[0], p[1]); }); M.batons = 10; } },
+    { name: 'Drilla drill', unlock: 'tower', tries: 5, rules: { tower: 1 }, intro: 'Five kubbs to throw. Aim each ONTO a lone field kubb and let go on gold: a tower.',
+      setup: function (M) { M.kubbs = M.kubbs.filter(function (k) { return k.half === 0; }); fieldK(M, 0.3, 5.0); fieldK(M, -0.9, 5.6); M.pend[0] = 5; M.phase = 'place'; } },
+    { name: 'Half-line king drill', unlock: 'half', tries: 6, rules: { vert: 1, half: 1 }, intro: 'Their half is clear. Six batons at the king from the half line: only a gold release counts.',
+      setup: function (M) { M.kubbs = M.kubbs.filter(function (k) { return k.half === 0; }); M.batons = 6; } },
+  ];
+  /** How far a release was from the gold core's centre, in ms (− early, + late). */
+  function relMs(t) { return Math.round(((t % 0.95) / 0.95 - 0.55) * 950); }
+  function relNote(ms) { return Math.abs(ms) <= 36 ? 'Gold — ' + (ms === 0 ? 'dead centre' : Math.abs(ms) + ' ms ' + (ms < 0 ? 'early' : 'late')) : (ms < 0 ? 'Early by ' : 'Late by ') + (Math.abs(ms) - 36) + ' ms'; }
+  function startRun(kind, n, o) {
+    o = o || {};
+    audio();
+    var spec = specOf(kind, n), seed = o.seed || (kind === 'daily' ? hashDay() : (Math.random() * 4294967295) >>> 0);
+    var M = Core.newMatch({ n: spec.n, seed: seed, wind: spec.wind * (seed & 1 ? 1 : -1), gust: spec.gust, first: 0, rules: spec.rules });
+    if (kind === 'drill') DRILLS[n].setup(M);
+    if (kind === 'daily') {   // the Last King: a seeded field on their half, three batons, no second turn
+      var r = Core.mulberry(seed);
+      M.kubbs = M.kubbs.filter(function (k) { return k.half === 0 || r() < 0.5; });
+      M.kubbs.push({ id: 'k' + (M.nid++), x: Math.round((r() * 3 - 1.5) * 1000) / 1000, y: Math.round((5 + r() * 1.8) * 1000) / 1000, half: 1, field: true, up: true });
+      M.batons = 3;
+    }
+    RUN = { kind: kind, n: n, spec: spec, M: M, me: 0, deaths: 0, t: 0, phase: 'start', anim: null, aim: 0, power: 0, chargeT: 0, spinQ: 0,
+      cursor: { x: 0, y: 5.6 }, stats: { felled: 0, doubles: 0, kingEarly: 0, best: '', thrown: 0, vert: 0, towers: 0, towerFells: 0, outs: 0, pens: 0, leftField: 0, raisedMine: 0, half: false, baseLeft: 0, clean: true },
+      aiT: 0, over: false, lying: [], fallen: [], clock: 0, cam: { y: -2.6, ty: -2.6 }, halfOn: false, drill: kind === 'drill' ? { id: n, done: 0, good: 0, notes: [] } : null };
+    setScene('play');
+    paintBoard();
+    call(kind === 'mission' && n === 1 ? 'Glad midsommar! Three kubbs each. Topple theirs, then the king.' : 'Vs ' + spec.rival + ' — ' + (kind === 'mission' ? MS[n - 1][2] : spec.name));
+    if (kind === 'mission' || kind === 'top') big(spec.final ? 'FINAL' : 'Mission ' + (kind === 'top' ? '★' : n), spec.name + ' · vs ' + spec.rival, 1700);
+    nextPhase();
+    if (kind === 'mission' && n === 1) tipOnce('aim', TOUCH ? 'Drag on the grass to aim at a kubb on their half.' : 'Aim with ← → or the mouse: the mark shows where the baton lands.');
+    if (kind === 'mission' || kind === 'top') {   // one technique unlocks per act, with a single skippable prompt
+      if (spec.rules.vert) tipOnce('t-vert', 'New technique · Rakt! — the vertical throw. Let go in the GOLD core of the ring: the baton flies dead straight and skids on through. Practise it in the Training ground.');
+      if (spec.rules.tower) tipOnce('t-tower', 'New technique · Drilla — the drill. Your inkast is now a hold-and-release: aim it right ONTO one of your field kubbs and let go on gold — it stands on top as a tower, and one baton fells both. They stand side-by-side kubbs apart (the raise), but never a tower.');
+      if (spec.rules.inkast) tipOnce('t-inkast', 'Act 2 rule · the inkast: a kubb short of the middle line or out of the field is thrown again; out twice and THEY stand it where you like it least.');
+      if (spec.rules.ground) tipOnce('t-ground', 'Act 3 rule · uneven ground: the shaded bumps roll a landing baton downhill. A Rakt! baton digs in and barely moves.');
+      if (spec.rules.half) tipOnce('t-half', 'New technique · the half-line king shot. With their half clear, press ' + (TOUCH ? 'Step up' : '↑') + ' to throw at the king from 2 m — but only a Rakt! (gold) baton counts; anything else is a foul and your turn ends.');
+    }
+    if (kind === 'drill') { call(DRILLS[n].intro); big('Training', DRILLS[n].name, 1500); }
+    return RUN;
+  }
+  /** A death: a king hit too early. Written to the save at once. */
+  function death(why) { if (!RUN || RUN.kind === 'practice') return; RUN.deaths++; SV.deathLog = (SV.deathLog | 0) + 1; save(); }
+  function myTurn() { return !!RUN && !RUN.M.over && RUN.M.turn === RUN.me; }
+  function nextPhase() {
+    var R = RUN, M = R.M;
+    paintBoard();
+    if (M.over) { onOver(); return; }
+    if (R.kind === 'daily' && M.turn !== 0) { M.over = true; M.winner = 1; M.why = 'daily'; onOver(); return; }
+    if (R.kind === 'drill' && (M.turn !== 0 || (R.drill.id === 1 && M.phase !== 'place'))) { M.over = true; M.winner = 0; M.why = 'drill'; onOver(); return; }
+    if (R.lastTurn !== M.turns) {   // a new turn: the batons on the grass are picked up, its side's felled kubbs too
+      R.lastTurn = M.turns; R.lying = []; R.cursorSet = false; R.halfOn = R.kind === 'drill' && R.drill.id === 2;
+      if (M.turn === R.me) { var tg = Core.plan(Core.clone(Object.assign({}, M, { phase: 'throw' })), 1.15).inp; R.aim = tg ? tg.aim : 0; R.aimD = tg ? 0.5 + tg.power * Core.REACH : 6; if (R.halfOn) { R.aim = 0; R.aimD = Core.HALF + 0.1; } }
+      R.turnAt = Date.now();
+    }
+    if (M.phase === 'place') R.fallen = R.fallen.filter(function (f) { return f.half !== M.turn; });
+    if (M.turn === R.me) {
+      R.phase = M.phase === 'place' ? 'place' : 'aim';
+      if (R.phase === 'place') {
+        var z = Core.placeZone(R.me), mine = Core.standing(M, 1 - R.me, true);
+        if (!R.cursorSet) R.cursor = mine.length ? { x: mine[mine.length - 1].x + 0.09, y: mine[mine.length - 1].y } : { x: 0, y: R.me === 0 ? z.y0 + 0.5 : z.y1 - 0.5 };
+        call(M.pend[R.me] + ' of your kubbs to throw onto their half. ' + (M.rules.tower ? 'Aim it ONTO a lone kubb of yours and let go on gold — a tower.' : pick(FI.place)));
+        tipOnce('place', 'Your felled kubbs go onto THEIR half, and you must topple them first. ' + (TOUCH ? 'Tap' : 'Click, or move the mark and press Space,') + ' to throw one — side by side, one baton can take two.');
+      } else {
+        var t = Core.standing(M, 1 - R.me);
+        if (!t.length) { if (R.kind !== 'drill') call(Core.halfOK(M, R.me) ? 'Every kubb is down. The king — from the baseline, or press ' + (TOUCH ? 'Step up' : '↑') + ' for the half line (gold only).' : FI.king[0]); tipOnce('king', 'Every kubb on their half is down: now topple the king, from your baseline. Before this, a king hit loses the game.'); }
+        else if (Core.standing(M, 1 - R.me, true).length) tipOnce('field', 'Field kubbs first: a baseline kubb knocked while a field kubb stands is stood up again.');
+        if (M.line[R.me] !== Core.base(R.me) && t.length) tipOnce('line', 'They left a field kubb standing: you step up to its line. Closer throws!');
+      }
+    } else { R.phase = 'ai'; R.aiT = M.phase === 'place' ? 0.55 : 0.85; }
+    paintHalf();
+  }
+  /** The half-line king shot: the Step up button (and ↑) shows only when it is open. */
+  function halfOpen() { var R = RUN; return !!(R && myTurn() && R.M.phase === 'throw' && (R.phase === 'aim' || R.phase === 'charge') && Core.halfOK(R.M, R.me)); }
+  function paintHalf() { var b = $('halfBtn'); if (!b) return; var on = halfOpen(); b.style.display = on ? 'block' : 'none'; b.classList.toggle('on', !!(on && RUN.halfOn)); b.textContent = RUN && RUN.halfOn ? '↓ Back to the baseline' : '↑ Step up · half line'; }
+  function toggleHalf() { var R = RUN; if (!halfOpen()) return; R.halfOn = !R.halfOn; SFX.ui(); R.aim = 0; R.aimD = Math.abs(Core.MID - Core.originFor(R.M, R.me, R.halfOn)) + 0.1; paintHalf(); call(R.halfOn ? 'The half line: 2 m from the king. Only a gold (Rakt!) release counts — anything else is a foul.' : 'Back on the baseline: any clean release can fell the king.'); }
+  /** Aim → a ground direction. The sway (nerves) and the steady ring (the release) are read here. */
+  function swayOf(R) { var nerve = 1 + R.spec.act * 0.25 + (R.spec.final ? 0.25 : 0), A = 0.005 * nerve; return reduced() ? A * 0.6 * Math.sin(R.clock * 1.7) : A * (Math.sin(R.clock * 2.3) + 0.6 * Math.sin(R.clock * 3.9 + 1)); }
+  function spinOf(t) { var w = 2.3, u = (t % 0.95) / 0.95; return clamp(1 - Math.abs(u - 0.55) * w * 1.15, 0, 1); }
+  /** The power bar runs out and back. Since 2026-10-29 it is phase-locked to the distance you aimed at: it starts so that
+      the ring's first green (and gold) moment, 0.52 s in, is exactly when the mark crosses your aimed distance. One timing. */
+  var LEAD = 0.95 * 0.55 / 1.7;
+  function powerOf(t, p0) { var u = ((((p0 || 0) + t / 1.7) % 2) + 2) % 2; return u < 1 ? u : 2 - u; }
+  function aimedPower(R) { var half = R.halfOn && Core.halfOK(R.M, R.me); return clamp(((R.aimD != null ? R.aimD : 6) - 0.5) / (half ? Core.LOB : Core.REACH), 0, 1); }
+  function beginCharge() {
+    var R = RUN; if (!R || SCENE !== 'play' || !myTurn()) return;
+    if (R.phase === 'place' && R.M.rules.tower) { audio(); R.phase = 'pcharge'; R.chargeT = 0; return; }   // the inkast is a hold-and-release from act 2
+    if (R.phase !== 'aim') return; audio(); R.phase = 'charge'; R.chargeT = 0; R.p0 = aimedPower(R) - LEAD;
+  }
+  function release() {
+    var R = RUN; if (!R) return;
+    if (R.phase === 'pcharge') { R.lastRel = relMs(R.chargeT); R.phase = 'place'; placeAt(R.cursor.x, R.cursor.y, spinOf(R.chargeT)); return; }
+    if (R.phase !== 'charge') return;
+    R.lastRel = relMs(R.chargeT);
+    var inp = Core.clampInput({ aim: R.aim + swayOf(R), power: powerOf(R.chargeT, R.p0), spin: spinOf(R.chargeT), half: R.halfOn && Core.halfOK(R.M, R.me) });
+    if (R.kind === 'drill' && R.drill.id !== 1) { R.drill.notes.push(R.lastRel); toast(relNote(R.lastRel), 1600); }
+    act({ t: 'thr', inp: inp });
+  }
+  function placeAt(x, y, q) { var R = RUN; if (!R || R.phase !== 'place' || !myTurn()) return; act({ t: 'plc', p: [x, y, q == null ? 0.5 : Math.round(q * 1000) / 1000] }); }
+  /** My action: simulate it here, then play it. */
+  function act(a) {
+    var R = RUN; if (!R) return;
+    var r = a.t === 'plc' ? Core.placeSim(R.M, a.p) : Core.throwSim(R.M, a.inp);
+    play(r);
+  }
+  /** Animate an action (mine or the house's), then commit it. */
+  function play(r) {
+    var R = RUN;
+    if (r.t === 'thr') {
+      if (r.s === R.me) R.stats.thrown++;
+      R.anim = { r: r, t: 0, T: 0.45 + r.d * 0.07, settle: 0.7, flips: Math.max(1, Math.round(r.d * 0.55 + r.inp.spin * 0.6)), heli: r.inp.spin < 0.55, hit: r.top.length > 0 || r.raised.length > 0 || r.king > 0, whups: 0, landed: false };
+      SFX.swing();
+    } else {
+      R.anim = { r: r, t: 0, T: 0.85, settle: 0.25, flips: 2, landed: false };
+      SFX.swing();
+    }
+    R.phase = 'anim';
+  }
+  function stepAnim(dt) {
+    var R = RUN, a = R.anim; if (!a) return;
+    var slow = a.r.t === 'thr' && a.hit && !reduced() && a.t > a.T * 0.7 && a.t < a.T + 0.35 ? 0.24 : 1;
+    a.t += dt * slow;
+    if (a.r.t === 'thr' && a.t < a.T) { var w = Math.floor(a.t / a.T * a.flips * 2); if (w > a.whups) { a.whups = w; SFX.whup(w % 2); } }
+    if (!a.landed && a.t >= a.T) { a.landed = true; onLand(a); }
+    if (a.t >= a.T + a.settle) { R.anim = null; commit(a.r); }
+  }
+  function onLand(a) {
+    var R = RUN, r = a.r;
+    if (r.t === 'plc') { if (!r.on) SFX.thud(); var L = r.ld || r.at; puff(L[0], L[1], 6); return; }
+    R.lying.push({ x: r.L[0], y: r.L[1], f: r.f, rot: r.inp.spin < 0.55 ? 1.2 : 0 });
+    var n = r.top.length;
+    if (r.king) { SFX.king(); shake(0.5); }
+    if (n || r.raised.length) { SFX.clonk(1); if (n > 1) setTimeout(function () { SFX.clonk(0.8); }, 70); shake(0.25 + n * 0.12); }
+    else SFX.thud();
+    r.top.forEach(function (id) { var k = Core.find(R.M, id); if (k) { R.fallen.push({ x: k.x, y: k.y, f: r.f, half: k.half, field: k.field, t: 0, id: id, on: k.on ? 1 : 0 }); puff(k.x, k.y, 8); } });
+    r.raised.forEach(function (id) { var k = Core.find(R.M, id); if (k) { k.wob = 0.6; puff(k.x, k.y, 4); } });
+    if (!n && !r.king) puff(r.L[0], r.L[1], 4);
+  }
+  function commit(r) {
+    var R = RUN, M = R.M, mine = r.s === R.me, wasMine = M.turn === R.me, twr = false;
+    if (r.t === 'thr') r.top.forEach(function (id) { var k = Core.find(M, id); if (k && (k.on || Core.towerOn(M, k))) twr = true; });
+    if (R.kind === 'drill' && r.t === 'thr' && R.drill.id === 2) {   // the king drill: count, and the king stands up again
+      R.drill.done++; if (r.king === 2) { R.drill.good++; big('KUNG!', 'From the half line', 1100); SFX.king(); } else if (r.foul) { big('FOUL', 'Not a gold release', 1100); SFX.ohh(); }
+      r = JSON.parse(JSON.stringify(r)); r.king = 0; r.foul = 0;
+    }
+    if (R.kind === 'drill' && r.t === 'thr' && R.drill.id === 0) { R.drill.done++; if (r.v) R.drill.good++; }
+    if (R.kind === 'drill' && r.t === 'plc' && R.drill.id === 1) {
+      R.drill.done++; R.drill.notes.push(R.lastRel);
+      if (r.on) { R.drill.good++; toast('TORN! A tower · ' + relNote(R.lastRel), 1800); }
+      else { var nb = 9; M.kubbs.forEach(function (k) { if (k.up && k.field && !k.on && !Core.towerOn(M, k)) nb = Math.min(nb, Math.hypot(k.x - r.ld[0], k.y - r.ld[1])); }); toast((nb < 9 ? Math.round(nb * 100) + ' cm off a kubb · ' : '') + relNote(R.lastRel), 1800); }
+    }
+    if (r.t === 'thr' && r.king === 1 && mine) {
+      R.stats.kingEarly++; death('king');
+    }
+    if (!Core.apply(M, r)) { nextPhase(); return; }
+    if (r.t === 'thr' && !M.king.up && !R.kingFall) R.kingFall = { t: 0, f: r.f };
+    if (mine) {   // the stats the stars are read from
+      if (r.t === 'thr') { if (r.v && r.top.length) R.stats.vert++; if (twr) R.stats.towerFells++; if (r.raised.length) R.stats.raisedMine++; }
+      else { if (r.out || r.pen) R.stats.outs++; if (r.pen) R.stats.pens++; if (r.on) R.stats.towers++; }
+      if (wasMine && M.turn !== R.me && !M.over && Core.standing(M, 1 - R.me, true).length) R.stats.leftField++;
+    }
+    if (r.t === 'thr') nameThrow(r, mine, twr);
+    else namePlace(r, mine);
+    if (R.kind === 'practice' && M.over && M.winner === 1) { /* little Elsa never really wins the backyard */ }
+    nextPhase();
+  }
+  /** The inkast, named: out, a penalty kubb, a drilled tower, the raise (and what the rival has read of you). */
+  function namePlace(r, mine) {
+    var R = RUN, who = mine ? '' : R.spec.rival;
+    if (R.kind === 'drill') return;
+    if (r.out) { if (mine) { call('Out — short of the middle line or over the string. Throw it again; out twice is a penalty kubb.'); teach('out'); } else call(who + ': out. They throw it again.'); SFX.deny(); return; }
+    if (r.pen) {
+      var ws = Core.weakSide(R.M, r.s), side = ws ? (ws < 0 ? 'left' : 'right') : '';
+      big('STRAFFKUBB', mine ? 'Out twice — ' + who + ' stands it far back' + (side ? ', on your weak ' + side : '') : 'Out twice — you stand it far back', 1900);
+      if (mine && side) call(who + ' has seen you miss more to the ' + side + ' — that is where the penalty kubb goes.');
+      SFX.thud(); return;
+    }
+    if (r.on) { big('TORN!', mine ? 'Drilled — a tower: one baton takes both' : who + ' drilled a tower', 1500); SFX.torn(); if (mine) call('Drilla! A tower — they cannot stand that one apart.'); return; }
+    if (r.rz && mine && !R.saidRaise) { R.saidRaise = true; call(who + ' stood it up a kubb-length from its neighbour (the raise). Drill a tower or line them one behind the other.'); }
+  }
+  function nameThrow(r, mine, twr) {
+    var R = RUN, n = r.top.length, who = mine ? '' : R.spec.rival + ': ';
+    if (mine) { R.stats.felled += n; if (n >= 2) R.stats.doubles++; }
+    if (r.foul) { big('FOUL', mine ? 'From the half line only a Rakt! baton counts — your turn ends' : who.replace(': ', '') + ' fouled from the half line', 2000); SFX.deny(); if (mine) teach('foul'); return; }
+    if (r.king === 2) { big(mine ? 'KUNG!' : 'Their king shot', mine ? (r.h ? 'Kungsskott from the half line!' : 'The king falls — the game is yours') : 'They felled your king' + (r.h ? ' from the half line' : ''), 2200); if (mine) { SFX.skal(); cheer(1.6); if (r.h) R.stats.half = true; } else SFX.ohh(); return; }
+    if (r.king === 1) { big('THE KING!', mine ? 'Hit too early — the game is lost' : who + 'hit the king too early — you win!', 2400); SFX.ohh(); if (mine) { call(FI.kingEarly[0]); teach('king'); } return; }
+    if (n >= 2) {
+      big('SKÅL!', (twr ? 'The tower falls' : n === 2 ? 'A double' : n === 3 ? 'A treble!' : n + ' at once!') + (r.v && mine ? ' · Rakt!' : '') + (mine ? '' : ' — ' + who.replace(': ', '')), 1900);
+      if (r.v && mine) SFX.rakt();
+      SFX.skal(); cheer(1.4); confetti(r.L[0], r.L[1]);
+      if (mine && n > (R.bestN || 0)) { R.bestN = n; R.stats.best = n === 2 ? 'a double' : 'a treble'; }
+      if (mine) call('Skål! Two with one baton — that is how it is done.');
+      return;
+    }
+    if (n === 1 && mine && r.v) { big('RAKT!', 'Straight as a birch — a vertical baton', 1300); SFX.rakt(); SFX.clap(); cheer(0.8); call(pick(FI.good)); if (!R.stats.best || R.stats.best === 'a clean topple') R.stats.best = 'a Rakt! topple'; R.firstTop = true; return; }
+    if (n === 1 && mine && !R.firstTop) { R.firstTop = true; big('BRA KASTAT!', 'Well thrown — your first kubb falls', 1700); SFX.clap(); cheer(1); confetti(r.L[0], r.L[1]); call(pick(FI.good)); if (!R.stats.best) R.stats.best = 'a clean topple'; R.stats.felled += 0; return; }
+    if (n === 1) { if (mine) { call(pick(FI.good)); if (!R.stats.best) R.stats.best = 'a clean topple'; } else call(who + 'down goes one of yours.'); SFX.clap(); cheer(0.5); return; }
+    if (r.raised.length) { if (mine) { call(FI.raised[0]); teach('raised'); } return; }
+    if (mine) { if (r.inp.spin < 0.55) { call(pick(FI.heli)); teach('heli'); } else call(pick(FI.miss)); }
+  }
+  // ── Teaching after a mistake: one line, at most twice per cause ──
+  var TEACH = { heli: 'A helicopter throw: let go of Space when the ring is green, for a clean end-over-end spin.', raised: 'Field kubbs first! A baseline kubb hit while a field kubb stands just stands up again.',
+    king: 'The king only falls last: clear every kubb on their half first, then throw at him from your baseline.',
+    foul: 'A foul: from the half line only a Rakt! (gold) release counts. Not sure of your timing? Press ' + (TOUCH ? 'Back to the baseline' : '↑ again') + ' and throw from the baseline.', out: 'Out: aim the inkast a little deeper than the middle line — about a baton-length.', short: 'Short again: hold a little longer — the mark runs out further.', lost: 'They cleared you: put your field kubbs side by side, near the middle line, so you can take two at a time.' };
+  function teach(cause) { SV.causes[cause] = (SV.causes[cause] | 0) + 1; save(); if (SV.causes[cause] <= 2) setTimeout(function () { toast(TEACH[cause], 3800); }, 900); }
+  // ── Tips: one at a time, once per save, skippable ──
+  var tipQ = [];
+  function tipOnce(id, text) {
+    if (!SV.settings.tips || SV.taught[id] || !RUN) return;
+    SV.taught[id] = 1; save();
+    tipQ.push(text); if (!$('tip').classList.contains('on')) nextTip();
+  }
+  function nextTip() { var t = tipQ.shift(); if (!t) { $('tip').classList.remove('on'); return; } $('tipTxt').textContent = t; $('tip').classList.add('on'); }
+  $('tipOk').onclick = function () { nextTip(); };
+  $('tipSkip').onclick = function () { tipQ = []; SV.settings.tips = false; save(); $('tip').classList.remove('on'); };
+
+  // ── The rival's turn ──
+  function stepAI(dt) {
+    var R = RUN; if (R.phase !== 'ai') return;
+    R.aiT -= dt; if (R.aiT > 0) return;
+    var p = Core.plan(R.M, R.spec.skill, R.spec.style);
+    play(R.M.phase === 'place' ? Core.placeSim(R.M, p.place) : Core.throwSim(R.M, p.inp));
+  }
+
+  // ── The end of a game ──
+  function onOver() {
+    var R = RUN; if (R.over) return;
+    setTimeout(function () { if (RUN === R) finishRun(); }, 1500);
+    R.phase = 'over';
+  }
+  function finishRun() {
+    var R = RUN; if (!R || R.over) return;
+    R.over = true; R.phase = 'over';
+    var M = R.M, won = M.winner === R.me;
+    if (R.kind === 'daily') {
+      SV.daily.date = todayKey(); SV.daily.won = won; if (won) { SV.daily.wins++; SV.daily.streak = SV.daily.last === todayKey(1) ? SV.daily.streak + 1 : 1; SV.daily.last = todayKey(); }
+      save();
+    } else if (R.kind === 'top') { SV.top.played++; if (won) SV.top.wins++; save(); }
+    else if (R.kind === 'drill') { var dk = 'd' + R.drill.id; SV.drills[dk] = Math.max(SV.drills[dk] | 0, R.drill.good); save(); }
+    else if (R.kind === 'mission') {
+      if (won) {
+        R.stats.baseLeft = Core.standing(M, R.me, false).length; R.stats.clean = R.deaths === 0;
+        R.starsNow = starsOf(R.n, R.stats); R.starsPrev = SV.stars[R.n] | 0; SV.stars[R.n] = Math.max(R.starsPrev, R.starsNow);
+        SV.clears[R.n] = (SV.clears[R.n] | 0) + 1; R.newHorse = !SV.horses[R.n]; SV.horses[R.n] = 1;
+        R.prevBest = SV.best[R.n]; SV.best[R.n] = Math.min(SV.best[R.n] == null ? 999 : SV.best[R.n], R.stats.thrown);
+      } else { if (M.why !== 'king-early') teach('lost'); }
+      SV.last = { txt: (won ? 'beat ' : 'lost to ') + R.spec.rival };
+      save();
+    }
+    showResults(won);
+  }
+  function quitRun() {
+    var R = RUN; if (!R) return;
+    RUN = null; setScene('title');
+  }
+  function pause() { if (SCENE !== 'play' || !RUN) return; paintPause(); setScene('pause'); }
+  function resume() { if (!RUN) { setScene('title'); return; } setScene('play'); }
+  function showResults(won) {
+    var R = RUN, M = R.M, n = R.n;
+    $('rKick').textContent = 'Fika Time · ' + R.spec.name;
+    $('rTitle').textContent = R.kind === 'drill' ? R.spec.name + ': ' + R.drill.good + ' of ' + R.drill.done : R.kind === 'daily' ? (won ? 'The last king falls!' : 'The king stands — tomorrow') : won ? (R.spec.final ? 'Kubb King! ' : 'Well thrown! ') + 'You beat ' + R.spec.rival : M.why === 'king-early' ? 'The king fell too early' : R.spec.rival + ' take it';
+    $('rWhy').textContent = R.kind === 'mission' ? (won ? '' : 'Shake hands, a bun, and go again.') : R.kind === 'daily' ? 'The Daily is for the bragging rights. Streak: ' + SV.daily.streak + '.' : R.kind === 'top' ? 'Wins against Farmor: ' + SV.top.wins + ' of ' + SV.top.played + '.' : R.kind === 'drill' ? 'Best: ' + (SV.drills['d' + R.drill.id] | 0) + ' of ' + DRILLS[R.drill.id].tries + '.' : '';
+    var st = $('rStats'); st.textContent = '';
+    function line(h, b) { var p = el('p', 'rline'); p.appendChild(document.createTextNode(h + ' ')); p.appendChild(el('b', null, b)); st.appendChild(p); }
+    if (R.kind === 'drill') {
+      st.appendChild(el('h3', null, 'Farmor\'s stopwatch'));
+      var nt = R.drill.notes; if (nt.length) { var avg = Math.round(nt.reduce(function (a, b) { return a + Math.abs(b); }, 0) / nt.length); line('Your releases:', nt.map(function (x) { return (x > 0 ? '+' : '') + x; }).join(' · ') + ' ms'); line('Average miss of the gold centre:', avg + ' ms' + (avg <= 36 ? ' — inside the gold' : '')); var early = nt.filter(function (x) { return x < -36; }).length, late = nt.filter(function (x) { return x > 36; }).length; if (early || late) line('Tendency:', early > late ? 'early — wait a beat longer' : late > early ? 'late — let go a beat sooner' : 'both ways'); }
+      $('rVoice').textContent = 'Farmor Ingrid: “' + (R.drill.good >= DRILLS[R.drill.id].tries * 0.6 ? 'That is a hand that has thrown before.' : 'Again. Lagom — feel the ring, do not chase it.') + '”';
+      var BD = $('rBtns'); BD.textContent = ''; var x1 = el('button', 'btn red', 'Again'); x1.onclick = function () { SFX.ui(); startRun('drill', R.drill.id); }; BD.appendChild(x1);
+      var x2 = el('button', 'btn', 'Missions'); x2.onclick = function () { SFX.ui(); RUN = null; openMissions(); }; BD.appendChild(x2);
+      $('rHorse').style.display = 'none'; setScene('results'); return;
+    }
+    st.appendChild(el('h3', null, won ? 'Your game' : 'The game'));
+    if (R.kind === 'mission' && won && R.starsNow) {
+      var sp = el('p', 'rline stars'); sp.appendChild(el('b', 'starbig', starStr(R.starsNow))); if (R.starsNow > R.starsPrev && R.starsPrev) sp.appendChild(el('span', 'up', ' new best ▲'));
+      st.appendChild(sp); var dd = STARS[R.n - 1];
+      line((R.starsNow >= 2 ? '✓' : '✗') + ' ★★', dd[0].t); line((R.starsNow >= 3 ? '✓' : '✗') + ' ★★★', dd[1].t + (R.starsNow < 2 && dd[1].f(R.stats) ? ' (done — it counts once ★★ is too)' : ''));
+    }
+    var tech = []; if (R.stats.vert) tech.push(R.stats.vert + ' Rakt!'); if (R.stats.towers) tech.push(R.stats.towers + ' tower' + (R.stats.towers > 1 ? 's' : '') + ' drilled'); if (R.stats.towerFells) tech.push(R.stats.towerFells + ' tower' + (R.stats.towerFells > 1 ? 's' : '') + ' felled'); if (R.stats.half) tech.push('the half-line king shot');
+    if (tech.length) line('Techniques:', tech.join(' · '));
+    line('Batons thrown:', String(R.stats.thrown)); line('Kubbs felled:', String(R.stats.felled) + (R.stats.doubles ? ' · ' + R.stats.doubles + ' double' + (R.stats.doubles > 1 ? 's' : '') + ' (Skål!)' : ''));
+    line('Turns:', String(Math.floor(M.turns / 2) + 1)); if (R.stats.best) line('Throw of the game:', R.stats.best);
+    if (R.kind === 'mission' && won) {
+      var p = el('p', 'rline'), b = R.stats.thrown;
+      if (R.prevBest == null) p.textContent = 'First win against ' + R.spec.rival + ': ' + b + ' batons.';
+      else { p.appendChild(document.createTextNode('Fewest batons vs ' + R.spec.rival + ': ' + R.prevBest + ' → ' + Math.min(R.prevBest, b) + ' ')); if (b < R.prevBest) p.appendChild(el('span', 'up', '▲')); }
+      st.appendChild(p);
+      if (R.deaths === 0) line('A clean game:', 'no king trouble');
+    }
+    var hc = $('rHorse'), hx = hc.getContext('2d'); hx.clearRect(0, 0, 120, 120);
+    if (R.kind === 'mission') { drawDala(hx, 60, 64, 100, MS[n - 1][4], won || !!SV.horses[n]); hc.style.display = ''; } else hc.style.display = 'none';
+    $('rVoice').textContent = 'Farmor Ingrid: “' + (won ? (R.newHorse ? 'Their Dala horse goes on your shelf. ' : '') + pick(FI.win) : pick(FI.lose)) + '”';
+    var B = $('rBtns'); B.textContent = '';
+    function btn(t, red, fn) { var x = el('button', 'btn' + (red ? ' red' : ''), t); x.onclick = function () { SFX.ui(); fn(); }; B.appendChild(x); }
+    if (R.kind === 'mission' && won && n < 15) btn('Next game · ' + MS[n][0], true, function () { startRun('mission', n + 1); });
+    else if (R.kind === 'mission' && won && n === 15) btn('Kungsspelet', true, function () { startRun('top', 16); });
+    if (R.kind !== 'daily') btn(won ? 'Play again' : 'Retry', !won, function () { startRun(R.kind, n); });
+    btn('Missions', false, function () { RUN = null; openMissions(); });
+    setScene('results');
+    if (won) { SFX.tune(); cheer(2); }
+  }
+
+  // ══ Pictures: all drawn in code ═══════════════════════════════════════════════════════════════════════════
+  var cv = $('cv'), ctx = cv.getContext('2d'), VW = 1, VH = 1, DPR = 1;
+  var V = { F: 500, H0: 200, cx: 400 }, CAMY = -2.6, CAMX = 0, CAMH = 1.9, SHAKE = 0, FX = [], AMBP = [], TUFTS = [], CHEER = 0, BGK = '', BG = null;
+  var VS = 2.1;   // kubbs and batons are drawn a little larger than life, so they read at eight metres
+  var COL = { grass: '#5f8f3a', pine: '#20402e', birch: '#efe6d2', sun: '#e8c547', falu: '#9b2d20', wood: '#d9c08e', woodD: '#a7884f', baton: '#c99a5b', blue: '#2b5c8a', red: '#b8342a', gold: '#e8c547' };
+  var ACTLOOK = [
+    { sky: ['#7fb6e0', '#cfe6f2', '#f7efd0'], ground: ['#6f9d43', '#4f7f2e'], stripe: 'rgba(255,255,230,.07)', line: 'rgba(255,255,255,.75)', hills: '#2f5a3a', far: '#5f8a6a', fx: 'petal' },
+    { sky: ['#5fa0d6', '#bcdcef', '#f1e6c8'], ground: ['#d9c690', '#bba66b'], stripe: 'rgba(255,255,255,.08)', line: 'rgba(120,80,40,.55)', hills: '#4b7f92', far: '#8fb8c6', fx: 'sand' },
+    { sky: ['#0b1834', '#1b3561', '#3b5a86'], ground: ['#e9eff5', '#c6d3e0'], stripe: 'rgba(120,150,190,.08)', line: 'rgba(200,70,50,.6)', hills: '#0f2236', far: '#29466a', fx: 'snow' },
+  ];
+  function look() { return ACTLOOK[RUN ? RUN.spec.act : actIdx(nextMission())]; }
+  function actNow() { return RUN ? RUN.spec.act : actIdx(nextMission()); }
+  function fit() {
+    DPR = Math.min(2, devicePixelRatio || 1); VW = innerWidth; VH = innerHeight;
+    cv.width = VW * DPR; cv.height = VH * DPR;
+    var portrait = VH > VW;
+    V.F = Math.min(0.84 * VH, (portrait ? 0.62 : 0.5) * VW * 2.6 / 2.7);
+    V.cx = VW / 2; V.H0 = (portrait ? 0.80 : 0.88) * VH - CAMH * V.F / 2.6;
+    BGK = '';
+    if (SCENE === 'title') paintHorses();
+  }
+  function flip() { return !!(RUN && RUN.me === 1); }
+  /** World metres → screen. h = height above the grass. Returns [X, Y, depth]. */
+  function P(x, y, h) {
+    var fl = flip(), vx = fl ? -x : x, vy = fl ? Core.LEN - y : y, z = vy - CAMY; if (z < 0.2) z = 0.2;
+    var sx = SHAKE ? (Math.random() - 0.5) * SHAKE * 8 : 0, sy = SHAKE ? (Math.random() - 0.5) * SHAKE * 6 : 0;
+    return [V.cx + (vx - CAMX) * V.F / z + sx, V.H0 + (CAMH - (h || 0)) * V.F / z + sy, z];
+  }
+  /** Screen → the grass (for the mouse and a finger). */
+  function groundAt(X, Y) {
+    if (Y <= V.H0 + 2) Y = V.H0 + 2;
+    var z = CAMH * V.F / (Y - V.H0), vy = CAMY + z, vx = (X - V.cx) * z / V.F + CAMX;
+    return flip() ? { x: -vx, y: Core.LEN - vy } : { x: vx, y: vy };
+  }
+  function shake(v) { if (!reduced()) SHAKE = Math.max(SHAKE, v); }
+  function puff(x, y, n) {
+    if (reduced()) return; var c = actNow() === 2 ? 'rgba(255,255,255,' : actNow() === 1 ? 'rgba(220,200,150,' : 'rgba(90,140,50,';
+    for (var i = 0; i < n; i++) FX.push({ x: x, y: y, h: 0.02, vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2, vh: 0.8 + Math.random() * 1.2, life: 0.7, max: 0.7, c: c, s: 2 + Math.random() * 2 });
+  }
+  function confetti(x, y) {
+    if (reduced()) return; var cs = ['#e8c547', '#c8332b', '#ffffff', '#6aa84f', '#2b5c8a', '#f29fc5'];
+    for (var i = 0; i < 46; i++) FX.push({ x: x, y: y, h: 0.3, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, vh: 2 + Math.random() * 3, life: 2.2, max: 2.2, c: cs[i % cs.length], s: 3 + Math.random() * 3, petal: true, rot: Math.random() * 6 });
+  }
+  function cheer(v) { CHEER = Math.max(CHEER, v); }
+  if (!TUFTS.length) { var tr = Core.mulberry(77); for (var ti = 0; ti < 420; ti++) TUFTS.push([tr() * 16 - 8, tr() * 22 - 2, tr()]); }
+
+  // ── The sky and the far land: cached, redrawn on resize or a change of place ──
+  function paintBG(act) {
+    var k = act + ':' + VW + 'x' + VH; if (BGK === k && BG) return; BGK = k;
+    BG = BG || document.createElement('canvas'); BG.width = VW * DPR; BG.height = VH * DPR;
+    var x = BG.getContext('2d'), L = ACTLOOK[act], H = V.H0;
+    x.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, L.sky[0]); g.addColorStop(0.7, L.sky[1]); g.addColorStop(1, L.sky[2]); x.fillStyle = g; x.fillRect(0, 0, VW, H + 2);
+    var r = Core.mulberry(31 + act);
+    if (act === 2) { for (var i = 0; i < 140; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.3 + r() * 0.7) + ')'; x.fillRect(r() * VW, r() * H * 0.8, 1.4, 1.4); } }
+    else { x.fillStyle = 'rgba(255,248,220,.9)'; x.beginPath(); x.arc(VW * 0.78, H * 0.32, Math.min(VW, VH) * 0.05, 0, TAU); x.fill(); var sg = x.createRadialGradient(VW * 0.78, H * 0.32, 4, VW * 0.78, H * 0.32, VH * 0.35); sg.addColorStop(0, 'rgba(255,240,190,.5)'); sg.addColorStop(1, 'rgba(255,240,190,0)'); x.fillStyle = sg; x.fillRect(0, 0, VW, H);
+      for (i = 0; i < 5; i++) { var cx0 = r() * VW, cy0 = H * (0.15 + r() * 0.4); x.fillStyle = 'rgba(255,255,255,.55)'; for (var j = 0; j < 5; j++) { x.beginPath(); x.ellipse(cx0 + j * 18 - 36, cy0 + Math.sin(j) * 4, 26, 10, 0, 0, TAU); x.fill(); } } }
+    // far hills / sea
+    if (act === 1) { var sea = x.createLinearGradient(0, H - 26, 0, H); sea.addColorStop(0, '#2f7fa6'); sea.addColorStop(1, '#7cc2d6'); x.fillStyle = sea; x.fillRect(0, H - 26, VW, 28); }
+    x.fillStyle = L.far; x.beginPath(); x.moveTo(0, H); for (i = 0; i <= 24; i++) x.lineTo(VW * i / 24, H - (act === 1 ? 26 : 18) - Math.abs(Math.sin(i * 1.3 + act)) * (act === 1 ? 6 : 26)); x.lineTo(VW, H); x.fill();
+    if (act !== 1) {   // the pine forest
+      x.fillStyle = L.hills;
+      for (i = 0; i < VW / 9; i++) { var px = i * 9 + r() * 6, ph = 18 + r() * 26; x.beginPath(); x.moveTo(px - 6, H + 1); x.lineTo(px, H - ph); x.lineTo(px + 6, H + 1); x.fill(); if (act === 2) { x.fillStyle = 'rgba(240,246,252,.85)'; x.beginPath(); x.moveTo(px - 2, H - ph + 8); x.lineTo(px, H - ph); x.lineTo(px + 2, H - ph + 8); x.fill(); x.fillStyle = L.hills; } }
+    }
+    var gg = x.createLinearGradient(0, H, 0, VH); gg.addColorStop(0, L.ground[1]); gg.addColorStop(1, L.ground[0]); x.fillStyle = gg; x.fillRect(0, H, VW, VH - H);
+  }
+  function quad(a, b, c, d, fill) { ctx.fillStyle = fill; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); ctx.fill(); }
+  function rawZ(y) { return (flip() ? Core.LEN - y : y) - CAMY; }
+  function visY(y) { return rawZ(y) >= 0.4; }
+  /** Keep ground shapes in front of the camera when it rides in. */
+  function clampY(y) { var lo = CAMY + 0.4; return flip() ? Math.min(y, Core.LEN - lo) : Math.max(y, lo); }
+  function drawGround(t) {
+    var L = look();
+    // mown stripes across the field, one a metre
+    for (var y = 0; y < 8; y++) if (y % 2 === 0) { var ya = clampY(y), yb = clampY(y + 1); if (ya !== yb) quad(P(-2.5, ya), P(2.5, ya), P(2.5, yb), P(-2.5, yb), L.stripe); }
+    var mid = actNow() === 1 ? 'rgba(90,60,30,.18)' : actNow() === 2 ? 'rgba(80,110,150,.10)' : 'rgba(30,60,20,.10)';
+    quad(P(-2.5, clampY(0)), P(2.5, clampY(0)), P(2.5, clampY(8)), P(-2.5, clampY(8)), mid);
+    // tufts
+    ctx.strokeStyle = actNow() === 2 ? 'rgba(160,180,205,.7)' : actNow() === 1 ? 'rgba(150,130,80,.55)' : 'rgba(40,80,25,.6)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var i = 0; i < TUFTS.length; i++) { var q = TUFTS[i], p = P(q[0], q[1]); if (p[2] < 0.6 || p[2] > 22) continue; var s = 22 / p[2]; ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + (q[2] - 0.5) * s * 0.6, p[1] - s * 0.5); }
+    ctx.stroke();
+    // the boundary string, the middle line and the corner pegs
+    ctx.strokeStyle = L.line; ctx.lineWidth = 1.4;
+    function seg(a, b) { if (a[1] === b[1] && !visY(a[1])) return; var p = P(a[0], clampY(a[1])), q2 = P(b[0], clampY(b[1])); ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q2[0], q2[1]); ctx.stroke(); }
+    seg([-2.5, 0], [2.5, 0]); seg([-2.5, 8], [2.5, 8]); seg([-2.5, 0], [-2.5, 8]); seg([2.5, 0], [2.5, 8]);
+    ctx.setLineDash([6, 6]); seg([-2.5, 4], [2.5, 4]); ctx.setLineDash([]);
+    [[-2.5, 0], [2.5, 0], [-2.5, 8], [2.5, 8], [-2.5, 4], [2.5, 4]].forEach(function (c) { if (!visY(c[1])) return; var b = P(c[0], c[1], 0), tp = P(c[0], c[1], 0.3); ctx.strokeStyle = '#7a4a22'; ctx.lineWidth = Math.max(1.5, 0.05 * V.F / b[2]); ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(tp[0], tp[1]); ctx.stroke(); ctx.fillStyle = '#c8332b'; ctx.fillRect(tp[0] - 2, tp[1] - 2, 4, 4); });
+    // act 3: the bumps (tussocks under the snow) and hollows, from the seed — lit from the top-left
+    if (RUN && RUN.M.bumps && RUN.M.bumps.length) RUN.M.bumps.forEach(function (b) {
+      if (!visY(b.y)) return; var c = P(b.x, b.y, 0), e = P(b.x + b.r, b.y, 0), rx = Math.abs(e[0] - c[0]) * 1.1, ry = rx * 0.34, up = b.h > 0;
+      ctx.fillStyle = up ? 'rgba(70,95,130,.16)' : 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(c[0] + rx * 0.12, c[1] + ry * 0.25, rx, ry, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = up ? 'rgba(255,255,255,.55)' : 'rgba(70,95,130,.2)'; ctx.beginPath(); ctx.ellipse(c[0] - rx * 0.15, c[1] - ry * 0.2, rx * 0.65, ry * 0.6, 0, 0, TAU); ctx.fill();
+    });
+    // the half line for the king shot, when it is open to me
+    if (RUN && halfOpen()) { var hy = Core.base(RUN.me) + Core.dirOf(RUN.me) * Core.HALF; ctx.strokeStyle = RUN.halfOn ? 'rgba(255,210,63,.95)' : 'rgba(255,210,63,.45)'; ctx.lineWidth = RUN.halfOn ? 3 : 1.5; ctx.setLineDash([2, 6]); seg([-2.5, hy], [2.5, hy]); ctx.setLineDash([]); }
+    // the advantage line, when a side steps up
+    if (RUN) [0, 1].forEach(function (s) { var ly = RUN.M.line[s]; if (ly !== Core.base(s)) { ctx.strokeStyle = 'rgba(232,197,71,.9)'; ctx.lineWidth = 2; ctx.setLineDash([3, 5]); seg([-2.5, ly], [2.5, ly]); ctx.setLineDash([]); } });
+  }
+
+  // ── Wooden things: a box in perspective, faces drawn far to near ──
+  function shadeCol(hex, k) { var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; return 'rgb(' + Math.round(clamp(r * k, 0, 255)) + ',' + Math.round(clamp(g * k, 0, 255)) + ',' + Math.round(clamp(b * k, 0, 255)) + ')'; }
+  /** A block w×w×h standing at (x, y), falling toward (fx, fy) by angle a (0 standing … π/2 lying). */
+  function box3(x, y, w, h, fx, fy, a, col, h0) {
+    h0 = h0 || 0;
+    var ux = fx, uy = fy, vx = -fy, vy = fx, ca = Math.cos(a), sa = Math.sin(a), hw = w / 2, pts = [];
+    for (var i = 0; i < 8; i++) {
+      var u = (i & 1 ? hw : -hw), v = (i & 2 ? hw : -hw), hh = (i & 4 ? h : 0);
+      var u2 = hw + (u - hw) * ca + hh * sa, h2 = -(u - hw) * sa + hh * ca;
+      pts.push(P(x + ux * u2 + vx * v, y + uy * u2 + vy * v, h2 + h0));
+    }
+    var F = [[0, 1, 3, 2, 0.55], [4, 5, 7, 6, 1.12], [0, 1, 5, 4, 0.8], [2, 3, 7, 6, 0.8], [0, 2, 6, 4, 0.68], [1, 3, 7, 5, 0.92]];
+    F.forEach(function (f) { f.z = (pts[f[0]][2] + pts[f[1]][2] + pts[f[2]][2] + pts[f[3]][2]) / 4; });
+    F.sort(function (p, q) { return q.z - p.z; });
+    F.forEach(function (f) { quad(pts[f[0]], pts[f[1]], pts[f[2]], pts[f[3]], shadeCol(col, f[4])); });
+    ctx.strokeStyle = 'rgba(40,25,10,.35)'; ctx.lineWidth = 0.8;
+    var nf = F[F.length - 1]; ctx.beginPath(); ctx.moveTo(pts[nf[0]][0], pts[nf[0]][1]); [1, 2, 3].forEach(function (k) { ctx.lineTo(pts[nf[k]][0], pts[nf[k]][1]); }); ctx.closePath(); ctx.stroke();
+    return pts;
+  }
+  function shadow(x, y, r) { var p = P(x, y, 0), q = P(x + r, y, 0); var rx = Math.abs(q[0] - p[0]); ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(p[0], p[1], rx, rx * 0.35, 0, 0, TAU); ctx.fill(); }
+  function drawKubb(k, fall) {
+    var w = Core.KW * VS, h = Core.KH * VS, a = 0, fx = 0, fy = 1;
+    if (fall) { a = Math.min(Math.PI / 2, ease(fall.t / 0.4) * Math.PI / 2); fx = fall.f[0]; fy = fall.f[1]; }
+    else if (k.wob > 0) { a = Math.sin(k.wob * 18) * 0.16 * k.wob; }
+    var h0 = k.on || (fall && fall.on) ? h * (fall ? 1 - Math.min(1, fall.t / 0.4) : 1) : 0;   // a drilled tower: the top kubb stands on its base
+    if (!h0) shadow(k.x, k.y, w * 0.8);
+    var col = k.field ? '#e8d6a8' : COL.wood;
+    if (k.half === 1 - (RUN ? RUN.me : 0) && k.field) col = '#efdcae';
+    box3(k.x, k.y, w, h, fx, fy, a, col, h0);
+  }
+  function drawKing(kg, t) {
+    var w = Core.KINGW * VS, h = Core.KINGH * VS, a = 0, f = [0, 1];
+    if (!kg.up && RUN && RUN.kingFall) { a = Math.min(Math.PI / 2, ease(RUN.kingFall.t / 0.6) * Math.PI / 2); f = RUN.kingFall.f; }
+    shadow(kg.x, kg.y, w);
+    var col = '#e3cf9c', pts = box3(kg.x, kg.y, w, h, f[0], f[1], a, col);
+    if (a < 0.2) {   // the crown: five points on the top
+      var c = P(kg.x, kg.y, h), c2 = P(kg.x + w / 2, kg.y, h), cw = Math.abs(c2[0] - c[0]) * 1.1, ch = cw * 0.9;
+      ctx.fillStyle = '#c9a86a'; ctx.beginPath(); ctx.moveTo(c[0] - cw, c[1]);
+      for (var i = 0; i <= 4; i++) { ctx.lineTo(c[0] - cw + i * cw / 2, c[1] - ch); if (i < 4) ctx.lineTo(c[0] - cw + i * cw / 2 + cw / 4, c[1] - ch * 0.35); }
+      ctx.lineTo(c[0] + cw, c[1]); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(60,40,10,.5)'; ctx.stroke();
+      if (RUN && RUN.phase !== 'over' && Core.standing(RUN.M, 1 - RUN.me).length === 0 && myTurn()) { ctx.strokeStyle = 'rgba(232,197,71,' + (0.5 + 0.5 * Math.sin(t * 5)) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c[0], c[1] - ch, cw * 1.6, 0, TAU); ctx.stroke(); }
+    }
+  }
+  /** A baton: a round stick, its centre at (x, y, h); e = its axis, unit, in world (ex, ey, eh). */
+  function drawBaton(x, y, h, ex, ey, eh, alpha) {
+    var L = Core.BATON * VS / 2, a = P(x - ex * L, y - ey * L, h - eh * L), b = P(x + ex * L, y + ey * L, h + eh * L), z = (a[2] + b[2]) / 2;
+    var wd = Math.max(2, 0.05 * VS * V.F / z * 0.6);
+    ctx.globalAlpha = alpha == null ? 1 : alpha; ctx.lineCap = 'round';
+    ctx.strokeStyle = '#8a6233'; ctx.lineWidth = wd + 1.5; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.strokeStyle = COL.baton; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, wd * 0.3); ctx.beginPath(); ctx.moveTo(a[0], a[1] - wd * 0.2); ctx.lineTo(b[0], b[1] - wd * 0.2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  /** Where the flying baton is at u (0 … 1 of its flight), and its axis. */
+  function batonAt(a, u) {
+    var r = a.r, o = r.o, L = r.L, apex = 0.45 + r.d * 0.11, x = lerp(o[0], L[0], u), y = lerp(o[1], L[1], u), h = 0.75 * (1 - u) + apex * 4 * u * (1 - u) + 0.03;
+    var th = a.flips * TAU * u + 0.4, fx = r.f[0], fy = r.f[1], ps = a.heli ? th * 0.8 : 0.08 * Math.sin(th);
+    var hx = fx * Math.cos(ps) - fy * Math.sin(ps), hy = fy * Math.cos(ps) + fx * Math.sin(ps);
+    return { x: x, y: y, h: h, ex: hx * Math.cos(th), ey: hy * Math.cos(th), eh: Math.sin(th) };
+  }
+  /** A kubb thrown onto the other half: an arc from the thrower's baseline, tumbling. */
+  function kubbFlight(a, u) {
+    var r = a.r, L = r.ld || r.at, y0 = Core.base(r.s), x = lerp(0, L[0], u), y = lerp(y0, L[1], u), h = 0.7 * (1 - u) + (0.6 + Math.abs(L[1] - y0) * 0.1) * 4 * u * (1 - u) + (r.on ? Core.KH * VS * u : 0);
+    return { x: x, y: y, h: h, a: u * TAU * 1.5 };
+  }
+
+  // ── The scenery around the field (in the world, so it slides with the camera) ──
+  function drawScenery(t) {
+    var act = actNow(), items = [];
+    if (act === 0) {
+      items.push({ y: 15, f: function () { cottage(-6.5, 15); } }, { y: 13, f: function () { maypole(5.2, 13, t); } }, { y: 11, f: function () { flagpole(-4.6, 11, t); } });
+      [[-4.2, 3], [4.6, 5.5], [-5.5, 8], [5.8, 10], [-3.8, 16]].forEach(function (b) { items.push({ y: b[1], f: function () { birch(b[0], b[1], t); } }); });
+      items.push({ y: 6.2, f: function () { blanket(-3.9, 6.2, t); } });
+    } else if (act === 1) {
+      [[-6.5, 17, 1.3], [6.8, 19, 1.0], [-9, 22, 1.6], [9.5, 15, 1.2]].forEach(function (s) { items.push({ y: s[1], f: function () { rauk(s[0], s[1], s[2]); } }); });
+      items.push({ y: 11, f: function () { flagpole(-4.4, 11, t); } }, { y: 7, f: function () { blanket(4.1, 7, t); } });
+      [[-4.5, 4], [4.6, 2]].forEach(function (g) { items.push({ y: g[1], f: function () { grassClump(g[0], g[1], t); } }); });
+    } else {
+      [[-3.6, 1.5], [3.6, 2.5], [-3.6, 5.5], [3.6, 6.5], [-3.6, 9.5], [3.6, 10.5]].forEach(function (l) { items.push({ y: l[1], f: function () { lantern(l[0], l[1], t); } }); });
+      [[-6, 13], [6.4, 14], [-7.5, 18], [7.4, 19]].forEach(function (p) { items.push({ y: p[1], f: function () { snowPine(p[0], p[1]); } }); });
+      items.push({ y: 9, f: function () { blanket(-4.6, 9, t); } });
+    }
+    return items;
+  }
+  function vline(x, y, h0, h1, w, col) { var a = P(x, y, h0), b = P(x, y, h1); ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, w * V.F / a[2]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); return [a, b]; }
+  function cottage(x, y) {   // a falu-red stuga with white corners
+    var a = P(x - 1.4, y, 0), b = P(x + 1.4, y, 0), c = P(x + 1.4, y, 2), d = P(x - 1.4, y, 2), r = P(x, y, 3.1);
+    quad(a, b, c, d, '#9b2d20'); ctx.fillStyle = '#3a2a22'; ctx.beginPath(); ctx.moveTo(d[0] - 4, d[1]); ctx.lineTo(r[0], r[1]); ctx.lineTo(c[0] + 4, c[1]); ctx.fill();
+    ctx.fillStyle = '#f6f1e2'; ctx.fillRect(a[0], d[1], 3, a[1] - d[1]); ctx.fillRect(b[0] - 3, c[1], 3, b[1] - c[1]);
+    var w1 = P(x - 0.8, y, 1.3), w2 = P(x - 0.3, y, 0.8); ctx.fillStyle = '#f6f1e2'; ctx.fillRect(w1[0] - 1, w1[1] - 1, w2[0] - w1[0] + 2, w2[1] - w1[1] + 2); ctx.fillStyle = '#e8c547'; ctx.fillRect(w1[0], w1[1], w2[0] - w1[0], w2[1] - w1[1]);
+    var w3 = P(x + 0.4, y, 1.3), w4 = P(x + 0.9, y, 0.8); ctx.fillStyle = '#f6f1e2'; ctx.fillRect(w3[0] - 1, w3[1] - 1, w4[0] - w3[0] + 2, w4[1] - w3[1] + 2); ctx.fillStyle = '#e8c547'; ctx.fillRect(w3[0], w3[1], w4[0] - w3[0], w4[1] - w3[1]);
+  }
+  function maypole(x, y, t) {   // the midsommarstång: a cross with two leaf rings, ribbons in the wind
+    var p = vline(x, y, 0, 4.2, 0.08, '#2f5a2a');
+    var arm = P(x - 0.9, y, 3.3), arm2 = P(x + 0.9, y, 3.3); ctx.strokeStyle = '#2f5a2a'; ctx.lineWidth = Math.max(2, 0.08 * V.F / p[0][2]); ctx.beginPath(); ctx.moveTo(arm[0], arm[1]); ctx.lineTo(arm2[0], arm2[1]); ctx.stroke();
+    [[arm, -1], [arm2, 1]].forEach(function (q) { var rr = Math.max(4, 0.45 * V.F / p[0][2]), sw = reduced() ? 0 : Math.sin(t * 1.4 + q[1]) * 0.12; ctx.save(); ctx.translate(q[0][0], q[0][1]); ctx.rotate(sw); ctx.strokeStyle = '#3f7a2e'; ctx.lineWidth = Math.max(2, rr * 0.25); ctx.beginPath(); ctx.arc(0, rr, rr, 0, TAU); ctx.stroke();
+      for (var i = 0; i < 6; i++) { ctx.fillStyle = ['#c8332b', '#e8c547', '#fff', '#2b5c8a'][i % 4]; ctx.beginPath(); ctx.arc(Math.cos(i) * rr, rr + Math.sin(i) * rr, Math.max(1.5, rr * 0.14), 0, TAU); ctx.fill(); } ctx.restore(); });
+    var top = p[1]; ['#2b5c8a', '#e8c547'].forEach(function (c, i) { ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(top[0], top[1]); for (var k = 1; k <= 8; k++) ctx.lineTo(top[0] + k * 3 + (reduced() ? 0 : Math.sin(t * 3 + k * 0.6 + i) * 3), top[1] + k * 5); ctx.stroke(); });
+  }
+  function flagpole(x, y, t) {   // the Swedish flag, waving
+    var p = vline(x, y, 0, 5, 0.05, '#f2f2f2'), top = p[1], s = Math.max(10, 1.4 * V.F / p[0][2]), w = s * 1.6, h = s;
+    var wind = RUN ? clamp((Core.windAt(RUN.M, RUN.M.seq) || 0.3), -2, 2) : 0.5, dir = flip() ? -1 : 1, d = (wind >= 0 ? 1 : -1) * dir;
+    for (var i = 0; i < 12; i++) {
+      var u0 = i / 12, u1 = (i + 1) / 12, ph = reduced() ? 0 : t * 5;
+      var y0 = Math.sin(u0 * 5 - ph) * h * 0.08 * u0, y1 = Math.sin(u1 * 5 - ph) * h * 0.08 * u1;
+      var x0 = top[0] + d * u0 * w, x1 = top[0] + d * u1 * w;
+      var inCross = (u0 >= 5 / 16 && u0 < 7.5 / 16);
+      ctx.fillStyle = inCross ? '#f2c400' : '#0a5aa3'; ctx.beginPath(); ctx.moveTo(x0, top[1] + y0); ctx.lineTo(x1, top[1] + y1); ctx.lineTo(x1, top[1] + y1 + h); ctx.lineTo(x0, top[1] + y0 + h); ctx.fill();
+      if (!inCross) { ctx.fillStyle = '#f2c400'; ctx.fillRect(Math.min(x0, x1), top[1] + (y0 + y1) / 2 + h * 0.4, Math.abs(x1 - x0) + 0.5, h * 0.2); }
+    }
+  }
+  function birch(x, y, t) {
+    var p = vline(x, y, 0, 4.5, 0.18, '#f1ece0'), wd = Math.max(1, 0.18 * V.F / p[0][2]);
+    ctx.fillStyle = '#222'; for (var i = 1; i < 9; i++) { var q = P(x, y, i * 0.48); ctx.fillRect(q[0] - wd / 2, q[1], wd * (0.4 + (i % 3) * 0.2), Math.max(1, wd * 0.25)); }
+    var c = P(x, y, 4.6), r = Math.max(8, 1.5 * V.F / c[2]), sw = reduced() ? 0 : Math.sin(t * 0.9 + x) * r * 0.05;
+    ['#4f8a34', '#6aa84f', '#3e7a2a'].forEach(function (g, k) { ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(c[0] + sw + (k - 1) * r * 0.4, c[1] - k * r * 0.25, r * 0.8, r * 0.95, 0, 0, TAU); ctx.fill(); });
+  }
+  function rauk(x, y, s) {   // a Gotland sea stack: weathered limestone
+    var a = P(x, y, 0), b = P(x, y, 3.2 * s), w = 1.0 * s * V.F / a[2];
+    ctx.fillStyle = '#b7ad9a'; ctx.beginPath(); ctx.moveTo(a[0] - w, a[1]); ctx.lineTo(a[0] - w * 0.6, b[1] + w * 0.6); ctx.lineTo(a[0] - w * 0.2, b[1]); ctx.lineTo(a[0] + w * 0.5, b[1] + w * 0.3); ctx.lineTo(a[0] + w * 0.4, a[1] - w * 0.9); ctx.lineTo(a[0] + w * 0.9, a[1]); ctx.fill();
+    ctx.fillStyle = 'rgba(80,70,60,.25)'; ctx.fillRect(a[0] - w * 0.4, b[1] + w * 0.4, w * 0.6, (a[1] - b[1]) * 0.5);
+  }
+  function grassClump(x, y, t) { var a = P(x, y, 0), s = 0.5 * V.F / a[2]; ctx.strokeStyle = '#8a8a3a'; ctx.lineWidth = 1.2; for (var i = 0; i < 9; i++) { ctx.beginPath(); ctx.moveTo(a[0] + (i - 4) * s * 0.08, a[1]); ctx.lineTo(a[0] + (i - 4) * s * 0.14 + (reduced() ? 0 : Math.sin(t * 2 + i) * s * 0.06), a[1] - s * (0.6 + (i % 3) * 0.2)); ctx.stroke(); } }
+  function lantern(x, y, t) {
+    var p = vline(x, y, 0, 1.2, 0.04, '#333'), top = p[1], r = Math.max(3, 0.12 * V.F / p[0][2]), fl = reduced() ? 1 : 0.85 + 0.15 * Math.sin(t * 9 + x * 3);
+    var g = ctx.createRadialGradient(top[0], top[1], 1, top[0], top[1], r * 6); g.addColorStop(0, 'rgba(255,200,110,' + 0.55 * fl + ')'); g.addColorStop(1, 'rgba(255,200,110,0)'); ctx.fillStyle = g; ctx.fillRect(top[0] - r * 6, top[1] - r * 6, r * 12, r * 12);
+    ctx.fillStyle = '#ffd27a'; ctx.fillRect(top[0] - r * 0.6, top[1] - r, r * 1.2, r * 1.6); ctx.strokeStyle = '#222'; ctx.strokeRect(top[0] - r * 0.6, top[1] - r, r * 1.2, r * 1.6);
+  }
+  function snowPine(x, y) { var a = P(x, y, 0), b = P(x, y, 5), w = 1.4 * V.F / a[2]; for (var i = 0; i < 3; i++) { var yy = lerp(a[1], b[1], i * 0.3); ctx.fillStyle = '#163a2a'; ctx.beginPath(); ctx.moveTo(a[0] - w * (1 - i * 0.25), yy); ctx.lineTo(a[0], yy - (a[1] - b[1]) * 0.5); ctx.lineTo(a[0] + w * (1 - i * 0.25), yy); ctx.fill(); ctx.fillStyle = '#eef4fa'; ctx.beginPath(); ctx.moveTo(a[0] - w * 0.3 * (1 - i * 0.25), yy - (a[1] - b[1]) * 0.36); ctx.lineTo(a[0], yy - (a[1] - b[1]) * 0.5); ctx.lineTo(a[0] + w * 0.3 * (1 - i * 0.25), yy - (a[1] - b[1]) * 0.36); ctx.fill(); } }
+  /** The family on the blanket: flower crowns in summer, wool hats in winter; they jump when you shout Skål. */
+  function blanket(x, y, t) {
+    var act = actNow(), a = P(x - 0.9, y - 0.6, 0), b = P(x + 0.9, y - 0.6, 0), c = P(x + 0.9, y + 0.6, 0), d = P(x - 0.9, y + 0.6, 0);
+    quad(a, b, c, d, act === 2 ? '#7a3a2a' : '#c8332b'); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); ctx.lineTo((c[0] + d[0]) / 2, (c[1] + d[1]) / 2); ctx.stroke();
+    var cols = ['#2b5c8a', '#f3efe4', '#e8c547', '#6a3a8c'];
+    for (var i = 0; i < 4; i++) {
+      var px = x - 0.6 + i * 0.4, jump = CHEER > 0 && !reduced() ? Math.abs(Math.sin(t * 9 + i * 1.3)) * 0.25 * Math.min(1, CHEER) : 0, f = P(px, y, 0.1 + jump), hd = P(px, y, 0.95 + jump), s = Math.max(2, 0.17 * V.F / f[2]);
+      ctx.fillStyle = cols[i]; ctx.beginPath(); ctx.moveTo(f[0] - s, f[1]); ctx.lineTo(hd[0] - s * 0.6, hd[1] + s); ctx.lineTo(hd[0] + s * 0.6, hd[1] + s); ctx.lineTo(f[0] + s, f[1]); ctx.fill();
+      ctx.fillStyle = '#f0c9a0'; ctx.beginPath(); ctx.arc(hd[0], hd[1], s * 0.7, 0, TAU); ctx.fill();
+      if (act === 2) { ctx.fillStyle = ['#c8332b', '#2b5c8a', '#3e7a3a', '#e8c547'][i]; ctx.beginPath(); ctx.arc(hd[0], hd[1] - s * 0.2, s * 0.72, Math.PI, TAU); ctx.fill(); }
+      else { for (var k = 0; k < 5; k++) { ctx.fillStyle = ['#fff', '#e8c547', '#c8332b', '#f29fc5', '#7a5cc8'][k]; ctx.beginPath(); ctx.arc(hd[0] - s * 0.6 + k * s * 0.3, hd[1] - s * 0.6, Math.max(1, s * 0.18), 0, TAU); ctx.fill(); } }
+      if (CHEER > 0 && i % 2 === 0) { ctx.strokeStyle = cols[i]; ctx.lineWidth = Math.max(1, s * 0.3); ctx.beginPath(); ctx.moveTo(hd[0] + s * 0.5, hd[1] + s * 1.2); ctx.lineTo(hd[0] + s * 1.1, hd[1] - s * 0.8); ctx.stroke(); }
+    }
+    if (act === 0) { var bw = P(x + 0.2, y + 0.3, 0.05), r = Math.max(2, 0.14 * V.F / bw[2]); ctx.fillStyle = '#f3efe4'; ctx.beginPath(); ctx.ellipse(bw[0], bw[1], r * 1.4, r * 0.6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#d62828'; for (var j = 0; j < 5; j++) { ctx.beginPath(); ctx.arc(bw[0] - r + j * r * 0.5, bw[1] - r * 0.25, r * 0.3, 0, TAU); ctx.fill(); } }
+  }
+  function aurora(t) {
+    if (actNow() !== 2) return;
+    for (var i = 0; i < 3; i++) {
+      ctx.beginPath(); var base = V.H0 * (0.25 + i * 0.12);
+      for (var x = 0; x <= VW; x += 20) ctx.lineTo(x, base + Math.sin(x * 0.006 + (reduced() ? 0 : t * 0.3) + i) * 26);
+      ctx.lineTo(VW, base - 70); ctx.lineTo(0, base - 70); ctx.closePath();
+      var g = ctx.createLinearGradient(0, base - 70, 0, base + 20); g.addColorStop(0, 'rgba(60,240,170,0)'); g.addColorStop(1, 'rgba(60,240,170,' + (0.16 - i * 0.04) + ')'); ctx.fillStyle = g; ctx.fill();
+    }
+  }
+  function seaGlint(t) { if (actNow() !== 1 || reduced()) return; ctx.fillStyle = 'rgba(255,255,255,.7)'; for (var i = 0; i < 24; i++) { var x = (i * 97 + t * 14 * (1 + i % 3)) % VW, y = V.H0 - 22 + (i * 37 % 20); ctx.fillRect(x, y, 6 + (i % 4), 1); } }
+  function ambient(dt) {
+    var act = actNow(); if (reduced()) { AMBP.length = 0; return; }
+    var want = act === 2 ? 70 : act === 1 ? 18 : 22;
+    while (AMBP.length < want) AMBP.push({ x: Math.random() * VW, y: Math.random() * VH, v: 0.4 + Math.random(), r: Math.random() * 6 });
+    var wind = RUN ? Core.windAt(RUN.M, RUN.M.seq) * (flip() ? -1 : 1) : 0.4;
+    AMBP.forEach(function (p) {
+      if (act === 2) { p.y += dt * 40 * p.v; p.x += dt * (wind * 25 + Math.sin(p.r + p.y * 0.02) * 10); }
+      else if (act === 1) { p.x += dt * (wind * 90 + 30) * p.v; p.y += Math.sin(p.r + p.x * 0.01) * 0.2; }
+      else { p.y += dt * 18 * p.v; p.x += dt * (wind * 30 + Math.sin(p.r + p.y * 0.03) * 16); p.r += dt * 2; }
+      if (p.y > VH) p.y = -5; if (p.x > VW + 10) p.x = -10; if (p.x < -10) p.x = VW + 10;
+    });
+  }
+  function drawAmbient() {
+    var act = actNow();
+    AMBP.forEach(function (p) {
+      if (act === 2) { ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(p.x, p.y, 1 + p.v, 0, TAU); ctx.fill(); }
+      else if (act === 1) { ctx.fillStyle = 'rgba(240,225,180,.45)'; ctx.fillRect(p.x, p.y, 2, 1); }
+      else { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.v > 0.9 ? 'rgba(255,255,255,.9)' : 'rgba(246,170,200,.85)'; ctx.beginPath(); ctx.ellipse(0, 0, 3.2, 1.6, 0, 0, TAU); ctx.fill(); ctx.restore(); }
+    });
+  }
+  function stepFX(dt) {
+    for (var i = FX.length - 1; i >= 0; i--) { var p = FX[i]; p.life -= dt; if (p.life <= 0) { FX.splice(i, 1); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.h += p.vh * dt; p.vh -= (p.petal ? 2.5 : 6) * dt; if (p.h < 0) { p.h = 0; p.vh = 0; p.vx *= 0.8; p.vy *= 0.8; } if (p.rot != null) p.rot += dt * 6; }
+  }
+  function drawFX() {
+    FX.forEach(function (p) {
+      var q = P(p.x, p.y, p.h), s = Math.max(1, p.s * 8 / q[2]);
+      if (p.petal) { ctx.save(); ctx.translate(q[0], q[1]); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.globalAlpha = Math.min(1, p.life); ctx.fillRect(-s, -s * 0.4, s * 2, s * 0.8); ctx.restore(); ctx.globalAlpha = 1; }
+      else { ctx.fillStyle = p.c + (p.life / p.max * 0.8) + ')'; ctx.beginPath(); ctx.arc(q[0], q[1], s, 0, TAU); ctx.fill(); }
+    });
+  }
+
+  // ── The aim: the mark on the grass, the steady ring ──
+  function drawAim(t) {
+    var R = RUN; if (!R || !myTurn() || (R.phase !== 'aim' && R.phase !== 'charge') || SCENE !== 'play') return;
+    var half = R.halfOn && Core.halfOK(R.M, R.me), pw = R.phase === 'charge' ? powerOf(R.chargeT, R.p0) : aimedPower(R), inp = { aim: R.aim + swayOf(R), power: pw, half: half };
+    var y0 = Core.originFor(R.M, R.me, half), ap = Core.aimPoint(R.M, R.me, inp, 0), o = P(0, y0, 0), m = P(ap.x, ap.y, 0);
+    ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(m[0], m[1]); ctx.stroke(); ctx.setLineDash([]);
+    var sp = R.phase === 'charge' ? spinOf(R.chargeT) : 1, gold = R.M.rules.vert && sp >= Core.VERT, col = gold ? '#ffd23f' : sp > 0.78 ? '#4fd36a' : sp > 0.5 ? '#e8c547' : '#e2553c';
+    var rw = Math.max(6, 0.22 * V.F / m[2]);
+    ctx.strokeStyle = R.phase === 'charge' ? col : 'rgba(255,255,255,.9)'; ctx.lineWidth = R.phase === 'charge' ? 4 : 2;
+    ctx.beginPath(); ctx.ellipse(m[0], m[1], rw, rw * 0.38, 0, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(m[0] - rw * 0.5, m[1]); ctx.lineTo(m[0] + rw * 0.5, m[1]); ctx.moveTo(m[0], m[1] - rw * 0.2); ctx.lineTo(m[0], m[1] + rw * 0.2); ctx.stroke();
+    if (R.phase === 'charge') { wristRing(R, sp, col, gold); ctx.fillStyle = 'rgba(0,0,0,.35)'; var bx = VW / 2, by = VH - (TOUCH ? 120 : 70); ctx.fillRect(bx + 42, by - 30, 12, 60); ctx.fillStyle = '#e8c547'; ctx.fillRect(bx + 42, by + 30 - 60 * pw, 12, 60 * pw); }
+  }
+  /** The wrist ring: green = a clean end-over-end release; its gold core (from mission 2) = Rakt!, the vertical baton. */
+  function wristRing(R, sp, col, gold) {
+    var bx = VW / 2, by = VH - (TOUCH ? 120 : 70), rr = 26, u = (R.chargeT % 0.95) / 0.95;
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(bx, by, rr, 0, TAU); ctx.stroke();
+    if (R.M.rules.vert || R.M.rules.tower) {   // where the gold core sits on the ring
+      var g0 = 0.55 - 0.0378, g1 = 1.1 - g0;
+      ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(bx, by, rr + 9, -Math.PI / 2 + TAU * g0 - 0.03, -Math.PI / 2 + TAU * g1 + 0.03); ctx.stroke();
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(bx, by, rr + 9, -Math.PI / 2 + TAU * g0, -Math.PI / 2 + TAU * g1); ctx.stroke(); ctx.lineWidth = 7;
+    }
+    ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(bx, by, rr, -Math.PI / 2, -Math.PI / 2 + TAU * u); ctx.stroke();
+    ctx.fillStyle = '#fffaf0'; ctx.font = '700 12px ' + 'system-ui'; ctx.textAlign = 'center'; ctx.fillText(gold ? 'RAKT' : sp > 0.78 ? 'NOW' : 'wait', bx, by + 4);
+  }
+  function drawPlaceCursor(t) {
+    var R = RUN; if (!R || (R.phase !== 'place' && R.phase !== 'pcharge') || !myTurn()) return;
+    var z = Core.placeZone(R.me, R.M);
+    if (R.phase === 'pcharge') { var sp = spinOf(R.chargeT), gold = sp >= Core.VERT; wristRing(R, sp, gold ? '#ffd23f' : sp > 0.78 ? '#4fd36a' : sp > 0.5 ? '#e8c547' : '#e2553c', gold); }
+    quad(P(-2.5, z.y0), P(2.5, z.y0), P(2.5, z.y1), P(-2.5, z.y1), 'rgba(232,197,71,' + (0.08 + 0.05 * Math.sin(t * 3)) + ')');
+    var c = R.cursor; ctx.globalAlpha = 0.55; box3(c.x, c.y, Core.KW * VS, Core.KH * VS, 0, 1, 0, '#fff4c8'); ctx.globalAlpha = 1;
+    var p = P(c.x, c.y, 0), rr = Math.max(6, 0.2 * V.F / p[2]); ctx.strokeStyle = '#e8c547'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p[0], p[1], rr, rr * 0.4, 0, 0, TAU); ctx.stroke();
+  }
+
+  // ── A frame of play ──
+  function drawField(t, M, R) {
+    paintBG(R ? R.spec.act : actIdx(nextMission()));
+    ctx.drawImage(BG, 0, 0, VW, VH);
+    aurora(t); seaGlint(t);
+    drawGround(t);
+    var D = [];   // everything with a depth
+    drawScenery(t).forEach(function (s) { D.push({ z: P(0, s.y)[2], f: s.f }); });
+    M.kubbs.forEach(function (k) { D.push({ z: P(k.x, k.y)[2] - (k.on ? 0.001 : 0), f: function () { drawKubb(k, null); } }); });
+    if (R) R.fallen.forEach(function (f) { D.push({ z: P(f.x, f.y)[2], f: function () { drawKubb({ x: f.x, y: f.y, half: f.half, field: f.field }, f); } }); });
+    D.push({ z: P(M.king.x, M.king.y)[2], f: function () { drawKing(M.king, t); } });
+    if (R) R.lying.forEach(function (b) { D.push({ z: P(b.x, b.y)[2] + 0.01, f: function () { var a = b.rot; drawBaton(b.x, b.y, 0.03, b.f[0] * Math.cos(a) - b.f[1] * Math.sin(a), b.f[1] * Math.cos(a) + b.f[0] * Math.sin(a), 0, 0.92); } }); });
+    if (R && R.anim) {
+      var a = R.anim, u = clamp(a.t / a.T, 0, 1);
+      if (a.r.t === 'thr' && u < 1) {
+        var bp = batonAt(a, u);
+        D.push({ z: P(bp.x, bp.y)[2] - 0.01, f: function () {
+          shadow(bp.x, bp.y, 0.12);
+          if (!reduced()) for (var k = 3; k >= 1; k--) { var q = batonAt(a, clamp(u - k * 0.018, 0, 1)); drawBaton(q.x, q.y, q.h, q.ex, q.ey, q.eh, 0.12 * (4 - k)); }
+          drawBaton(bp.x, bp.y, bp.h, bp.ex, bp.ey, bp.eh, 1);
+        } });
+      } else if (a.r.t === 'plc' && u < 1) {
+        var kf = kubbFlight(a, u);
+        D.push({ z: P(kf.x, kf.y)[2] - 0.01, f: function () { shadow(kf.x, kf.y, 0.1); box3(kf.x, kf.y, Core.KW * VS, Core.KH * VS, 0, 1, 0, '#e8d6a8'); } });
+      } else if (a.r.t === 'plc' && !a.r.out) { var at = a.r.at; D.push({ z: P(at[0], at[1])[2] - 0.001, f: function () { drawKubb({ x: at[0], y: at[1], half: 1 - a.r.s, field: true, on: a.r.on }, null); } }); }
+    }
+    D = D.filter(function (d) { return d.z > 0.45; });
+    D.sort(function (p, q) { return q.z - p.z; });
+    D.forEach(function (d) { d.f(); });
+    drawPlaceCursor(t); drawAim(t); drawFX(); drawAmbient();
+    if (R && R.anim && R.anim.r.t === 'thr' && R.anim.hit && !reduced() && R.anim.t > R.anim.T * 0.7 && R.anim.t < R.anim.T + 0.35) {   // the slow-motion frame
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(0, 0, VW, 26); ctx.fillRect(0, VH - 26, VW, 26);
+    }
+  }
+  var TITLE_M = null;
+  function drawTitle(t) {
+    if (!TITLE_M) { TITLE_M = Core.newMatch({ n: 5, seed: 5 }); TITLE_M.kubbs.push({ id: 'f', x: 0.4, y: 5.6, half: 1, field: true, up: true }, { id: 'g', x: 0.47, y: 5.62, half: 1, field: true, up: true }); }
+    CAMX = reduced() ? 0.6 : 0.6 + Math.sin(t * 0.12) * 0.5; CAMY = -2.6;
+    drawField(t, TITLE_M, null);
+    // a baton loops end over end across the field now and then
+    var u = (t % 6) / 2.2; if (u < 1 && !reduced()) { var fake = { r: { o: [1.6, 0.5], L: [-0.6, 7.2], d: 7, f: [-0.3, 0.95] }, flips: 4, heli: false }; var bp = batonAt(fake, u); drawBaton(bp.x, bp.y, bp.h, bp.ex, bp.ey, bp.eh, 1); }
+  }
+  function viewY(y) { return flip() ? Core.LEN - y : y; }
+  function drawPlay(dt, t) {
+    var R = RUN, a = R.anim;
+    // the camera: home behind my throwing line; it rides my baton in toward the kubbs, then comes home
+    var home = (myTurn() && R.M.phase === 'throw' ? viewY(Core.originFor(R.M, R.me, R.halfOn)) : viewY(Core.base(R.me))) - 2.6, ty = home, tx = 0;
+    if (a && a.r.t === 'thr' && a.r.s === R.me && !reduced()) {   // ride in behind the baton, a little to the side of the king
+      var k = ease(Math.min(1, a.t / a.T * 1.25)), lx = flip() ? -a.r.L[0] : a.r.L[0];
+      ty = lerp(home, clamp(viewY(a.r.L[1]) - 3.4, home, 3.2), k); tx = lerp(0, (lx + (Math.abs(lx) < 0.7 ? (lx < 0 ? -0.9 : 0.9) : 0)) * 0.75, k);
+    }
+    if (reduced()) { CAMY = ty; CAMX = tx; } else { var e = Math.min(1, dt * 3); CAMY += (ty - CAMY) * e; CAMX += (tx - CAMX) * e; }
+    drawField(t, R.M, R);
+  }
+  function tickWorld(dt) {
+    if (SHAKE > 0) SHAKE = Math.max(0, SHAKE - dt * 2.5);
+    if (CHEER > 0) CHEER = Math.max(0, CHEER - dt);
+    stepFX(dt); ambient(dt);
+    if (RUN) {
+      RUN.fallen.forEach(function (f) { f.t += dt; });
+      RUN.M.kubbs.forEach(function (k) { if (k.wob > 0) k.wob = Math.max(0, k.wob - dt); });
+      if (!RUN.M.king.up) { if (!RUN.kingFall) RUN.kingFall = { t: 0, f: [0, Core.dirOf(RUN.M.winner >= 0 ? RUN.M.winner : 0)] }; RUN.kingFall.t += dt; }
+    }
+  }
+
+  // ── Small pictures: the lesson, the Dala horse ──
+  /** The lesson on How to play, looping: a side view of the field, a baton end over end into two kubbs. */
+  function howDemo(x, w, h, t) {
+    x.clearRect(0, 0, w, h);
+    var g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#cfe6f2'); g.addColorStop(0.62, '#f7efd0'); g.addColorStop(0.63, '#6f9d43'); g.addColorStop(1, '#4f7f2e'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    var gy = h * 0.8, u = (t * 0.45) % 1, kx = w * 0.72, kw = w * 0.05, kh = h * 0.16, k2 = kx + kw * 1.05, cK = '#b8342a';
+    function block(bx, a, c) { x.save(); x.translate(bx + kw, gy); x.rotate(a); x.fillStyle = c; x.fillRect(-kw, -kh, kw, kh); x.strokeStyle = 'rgba(0,0,0,.3)'; x.strokeRect(-kw, -kh, kw, kh); x.fillStyle = '#f6efe0'; x.beginPath(); x.arc(-kw / 2, -kh * 0.55, kw * 0.25, 0, TAU); x.fill(); x.restore(); }
+    var hitU = 0.7, fall = u > hitU ? Math.min(Math.PI / 2, (u - hitU) * 8) : 0;
+    block(kx, fall, cK); block(k2, fall * 0.9, cK);
+    var sx = w * 0.06, ex = kx - kw, bu = Math.min(1, u / hitU);
+    var bx = lerp(sx, ex, bu), by = lerp(gy - h * 0.2, gy - h * 0.06, bu) - Math.sin(bu * Math.PI) * h * 0.4 + Math.sin(bu * 9) * 3;
+    var th = bu * TAU * 3, L = w * 0.08;
+    x.strokeStyle = '#3b78b8'; x.lineWidth = 4.5; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(bx - Math.cos(th) * L, by - Math.sin(th) * L); x.lineTo(bx + Math.cos(th) * L, by + Math.sin(th) * L); x.stroke();
+    if (u > hitU) { x.fillStyle = '#e8c547'; x.font = '900 ' + (h * 0.24 | 0) + 'px Georgia, serif'; x.fillText('SKÅL!', w * 0.36, h * 0.3); }
+  }
+  /** A Dala horse: carved, painted, with the kurbits saddle. Unearned ones are a pale outline on the shelf. */
+  function drawDala(x, cx, cy, s, col, lit) {
+    var pts = [[-0.36, -0.06], [0.2, -0.08], [0.26, -0.34], [0.36, -0.44], [0.37, -0.36], [0.47, -0.22], [0.44, -0.14], [0.33, -0.18], [0.31, 0.0], [0.3, 0.14], [0.26, 0.4], [0.18, 0.4], [0.16, 0.16], [-0.2, 0.16], [-0.24, 0.4], [-0.32, 0.4], [-0.35, 0.12], [-0.44, 0.06], [-0.46, -0.1]];
+    x.save(); x.translate(cx, cy); x.scale(s, s);
+    x.beginPath(); pts.forEach(function (p, i) { if (i) x.lineTo(p[0], p[1]); else x.moveTo(p[0], p[1]); }); x.closePath();
+    if (!lit) { x.fillStyle = 'rgba(32,64,46,.10)'; x.fill(); x.strokeStyle = 'rgba(32,64,46,.3)'; x.lineWidth = 0.025; x.stroke(); x.restore(); return; }
+    x.fillStyle = col; x.fill(); x.strokeStyle = 'rgba(30,20,10,.6)'; x.lineWidth = 0.025; x.stroke();
+    var dec = col === '#f3efe4' || col === '#f6f1e2' || col === '#e8c547' ? '#2b5c8a' : '#f6efe0';
+    x.strokeStyle = dec; x.lineWidth = 0.03; x.beginPath(); x.moveTo(-0.15, -0.05); x.quadraticCurveTo(0, 0.14, 0.15, -0.05); x.stroke();
+    x.fillStyle = dec; [[-0.1, 0.02], [0, 0.07], [0.1, 0.02]].forEach(function (p) { x.beginPath(); x.arc(p[0], p[1], 0.03, 0, TAU); x.fill(); });
+    x.strokeStyle = '#3e7a3a'; x.beginPath(); x.moveTo(0.22, -0.12); x.lineTo(0.3, -0.3); x.stroke();
+    x.fillStyle = '#1d1d1d'; x.beginPath(); x.arc(0.36, -0.3, 0.018, 0, TAU); x.fill();
+    x.restore();
+  }
+  function drawHow(dt) {
+    var c = $('howCv'), r = c.getBoundingClientRect(), d = devicePixelRatio || 1; if (!r.width) return;
+    if (c.width !== Math.round(r.width * d)) { c.width = r.width * d; c.height = r.height * d; }
+    var x = c.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0);
+    howT += dt; howDemo(x, r.width, r.height, howT * 0.8);
+    x.fillStyle = '#20402e'; x.font = '700 13px system-ui'; x.fillText('End over end — and two kubbs side by side fall to one baton.', 10, r.height - 10);
+  }
+  function paintBoard() {
+    var R = RUN, B = $('board'); if (!R || !B) return; B.textContent = '';
+    var M = R.M, names = ['You', R.spec.rival];
+    [R.me, 1 - R.me].forEach(function (s, i) {
+      var row = el('div', 'row'), nm = el('span', 'nm', names[i]); row.appendChild(nm);
+      var st = Core.standing(M, s).length, tot = st + M.pend[s];
+      for (var k = 0; k < tot; k++) { var ic = el('i'); if (k >= st) ic.className = 'off'; row.appendChild(ic); }
+      if (M.turn === s && !M.over) row.appendChild(el('span', 'bat', M.phase === 'place' ? '· placing ' + M.pend[s] : '· ' + M.batons + ' batons'));
+      B.appendChild(row);
+    });
+    var kr = el('div', 'row'); var ki = el('i', 'k'); if (!M.king.up) ki.classList.add('off'); kr.appendChild(ki); kr.appendChild(el('span', 'bat', M.king.up ? 'the king stands' : 'the king is down')); B.appendChild(kr);
+  }
+
+  // ══ Input: reserved keys first (Esc P M) ═════════════════════════════════════════════════════════════════════
+  var held = {};
+  function clearInput() { held = {}; if (RUN && RUN.phase === 'charge') { RUN.phase = 'aim'; } if (RUN && RUN.phase === 'pcharge') RUN.phase = 'place'; }
+  addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); goBack(); return; }
+    if (e.code === 'KeyP' && (SCENE === 'play' || SCENE === 'pause')) { if (SCENE === 'play') pause(); else resume(); return; }
+    if (e.code === 'KeyM') { muted = !muted; setVol(); say(muted ? 'Sound off' : 'Sound on'); return; }
+    if (SCENE !== 'play' || !RUN) return;
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'KeyA' || e.code === 'KeyD') { e.preventDefault(); held[e.code] = true; }
+    if (!e.repeat && (e.code === 'ArrowUp' && !(RUN.halfOn) || e.code === 'ArrowDown' && RUN.halfOn) && (RUN.phase === 'aim' || RUN.phase === 'charge') && halfOpen()) toggleHalf();
+    if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); if (e.repeat) return; if (RUN.phase === 'aim') beginCharge(); else if (RUN.phase === 'place') { if (RUN.M.rules.tower) beginCharge(); else placeAt(RUN.cursor.x, RUN.cursor.y); } }
+  });
+  addEventListener('keyup', function (e) { held[e.code] = false; if ((e.code === 'Space' || e.code === 'Enter') && RUN && (RUN.phase === 'charge' || RUN.phase === 'pcharge')) release(); });
+  function aimFromPick(g) { var R = RUN, sx = Core.dirOf(R.me), y0 = Core.originFor(R.M, R.me, R.halfOn); R.aim = clamp(Math.atan2(g.x * sx, (g.y - y0) * sx), -0.45, 0.45); if (R.phase === 'aim') R.aimD = clamp(Math.hypot(g.x, g.y - y0), 0.6, R.halfOn && Core.halfOK(R.M, R.me) ? 5.4 : 10.4); }
+  var ptr = { down: false, id: null };
+  cv.addEventListener('pointermove', function (e) {
+    var R = RUN; if (!R || SCENE !== 'play' || !myTurn()) return;
+    if (e.pointerType !== 'mouse' && !ptr.down) return;
+    var g = groundAt(e.clientX, e.clientY);
+    if (R.phase === 'aim' || R.phase === 'charge') aimFromPick(g);
+    else if (R.phase === 'place' || R.phase === 'pcharge') { var z = Core.placeZone(R.me, R.M); R.cursor = { x: clamp(g.x, -2.3, 2.3), y: clamp(g.y, z.y0, z.y1) }; R.cursorSet = true; }
+  });
+  cv.addEventListener('pointerdown', function (e) {
+    var R = RUN; audio(); if (!R || SCENE !== 'play' || !myTurn()) return;
+    ptr.down = true; var g = groundAt(e.clientX, e.clientY);
+    if (R.phase === 'place') { var z = Core.placeZone(R.me, R.M); R.cursor = { x: clamp(g.x, -2.3, 2.3), y: clamp(g.y, z.y0, z.y1) }; R.cursorSet = true; if (!R.M.rules.tower) placeAt(R.cursor.x, R.cursor.y); else if (e.pointerType === 'mouse') beginCharge(); return; }
+    if (R.phase === 'aim') { aimFromPick(g); if (e.pointerType === 'mouse') beginCharge(); }
+  });
+  addEventListener('pointerup', function (e) { ptr.down = false; if (e.pointerType === 'mouse' && RUN && (RUN.phase === 'charge' || RUN.phase === 'pcharge') && !thr.down) release(); });
+  var thr = { down: false };
+  $('throwBtn').addEventListener('pointerdown', function (e) { e.preventDefault(); e.stopPropagation(); thr.down = true; audio(); if (RUN && RUN.phase === 'place' && !RUN.M.rules.tower) placeAt(RUN.cursor.x, RUN.cursor.y); else beginCharge(); });
+  $('throwBtn').addEventListener('pointerup', function (e) { e.preventDefault(); thr.down = false; release(); });
+  $('throwBtn').addEventListener('pointercancel', function () { thr.down = false; release(); });
+  $('pauseBtn').onclick = function () { pause(); };
+  $('halfBtn').onclick = function () { audio(); toggleHalf(); };
+  function stepInput(dt) {
+    var R = RUN; if (!R || !myTurn()) return;
+    var lr = (held.ArrowRight || held.KeyD ? 1 : 0) - (held.ArrowLeft || held.KeyA ? 1 : 0), ud = (held.ArrowUp ? 1 : 0) - (held.ArrowDown ? 1 : 0), fs = flip() ? -1 : 1;
+    if (R.phase === 'aim' || R.phase === 'charge') { if (lr) R.aim = clamp(R.aim + lr * 0.45 * dt, -0.45, 0.45); }   // aim is in the thrower's own frame: + is to their right
+    else if ((R.phase === 'place' || R.phase === 'pcharge') && (lr || ud)) { var z = Core.placeZone(R.me, R.M); R.cursor.x = clamp(R.cursor.x + lr * 1.8 * dt * fs, -2.3, 2.3); R.cursor.y = clamp(R.cursor.y + ud * 1.8 * dt * fs, z.y0, z.y1); R.cursorSet = true; }
+  }
+
+  // ══ The loop ════════════════════════════════════════════════════════════════════════════════════════════
+  var PERF = { n: 0, i: 0, ft: new Float32Array(1024), fw: new Float32Array(1024) };
+  var lastT = performance.now(), beltT2 = 0, frameErr = 0, birdT = 3;
+  function tick(dt) {
+    var R = RUN; if (!R) return;
+    if (SCENE !== 'play') return;
+    var gdt = dt * HOOK_SPEED;
+    R.clock += dt; if (!R.over) R.t += dt;
+    stepInput(dt);
+    if (R.phase === 'charge') { R.chargeT += dt; R.lastPower = powerOf(R.chargeT, R.p0); }
+    if (R.phase === 'pcharge') R.chargeT += dt;
+    if ((beltT2 += dt) > 0.25) { beltT2 = 0; paintHalf(); }
+    if (R.phase === 'anim') stepAnim(gdt);
+    else if (R.phase === 'ai') stepAI(gdt);
+    if (callT > 0) callT -= dt;
+  }
+  function frame(now) {
+    var dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000)), t = now / 1000, t0 = performance.now();
+    PERF.ft[PERF.i] = now - lastT; lastT = now;
+    try {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      tickWorld(dt);
+      if (RUN && (SCENE === 'play' || SCENE === 'pause' || SCENE === 'results' || (SCENE === 'how' && RUN.howFromPause))) { tick(dt); if (RUN) drawPlay(dt, t); else drawTitle(t); }
+      else { drawTitle(t); if (SCENE === 'title' && (birdT -= dt) < 0) { birdT = 4 + Math.random() * 6; if (AC && actNow() === 0) SFX.bird(); } }
+      if (SCENE === 'how') drawHow(dt);
+    } catch (err) { if (DEVHOST && window.console && !frameErr) { frameErr = 1; console.error('kubb frame', err && err.stack || err); } }
+    PERF.fw[PERF.i] = performance.now() - t0; PERF.i = (PERF.i + 1) & 1023; PERF.n++;
+    requestAnimationFrame(frame);
+  }
+  function pct(arr, n, q) { var a = Array.prototype.slice.call(arr, 0, Math.min(n, 1024)).sort(function (x, y) { return x - y; }); return a.length ? +a[Math.min(a.length - 1, Math.floor(q * a.length))].toFixed(2) : 0; }
+  function series(arr) { var n = Math.min(PERF.n, 1024); return { frames: n, p50: pct(arr, n, 0.5), p95: pct(arr, n, 0.95), worst: pct(arr, n, 1) }; }
+
+  // ══ Page hooks: the game's state and frame timings, read-only ══════════════════════════════════════════════
+  var HOOK = window['__' + GAME_ID] = {
+    state: function () {
+      var R = RUN, M = R && R.M;
+      return { screen: SCENE, mission: R ? R.n : null, kind: R ? R.kind : null, phase: R ? R.phase : null, turn: M ? M.turn : null, side: R ? R.me : null, mPhase: M ? M.phase : null, batons: M ? M.batons : null,
+        kubbs: M ? { mine: Core.standing(M, R.me).length, theirs: Core.standing(M, 1 - R.me).length, field: Core.standing(M, 1 - R.me, true).length, pend: M.pend.slice() } : null, king: M ? M.king.up : null,
+        line: M ? M.line.slice() : null, over: M ? M.over : false, winner: M ? M.winner : null, why: M ? M.why : '', lives: null, deaths: R ? R.deaths : 0, t: R ? Math.round(R.t * 10) / 10 : 0,
+        aim: R ? Math.round(R.aim * 1000) / 1000 : null, power: R && R.lastPower != null ? Math.round(R.lastPower * 1000) / 1000 : null,
+        sway: R ? Math.round(Math.abs(0.005 * (1 + R.spec.act * 0.25 + (R.spec.final ? 0.25 : 0))) * 10000) / 10000 : null,
+        stats: R ? JSON.parse(JSON.stringify(R.stats)) : null, horses: Object.keys(SV.horses).length, cleared: clearedCount(),
+        stars: JSON.parse(JSON.stringify(SV.stars)), totalStars: totalStars(), rank: rank(), tech: techLevel(), rules: M ? JSON.parse(JSON.stringify(M.rules)) : null, style: R ? R.spec.style : null,
+        halfOpen: halfOpen(), halfOn: !!(R && R.halfOn), lastRelease: R && R.lastRel != null ? R.lastRel : null, bumps: M ? M.bumps.length : 0, outs: M ? M.outs : 0, towers: M ? M.kubbs.filter(function (k) { return k.on; }).length : 0,
+        habit: M ? { weakSide: Core.weakSide(M, R.me), rate: [Math.round(M.habit[R.me][0] / M.habit[R.me][1] * 100) / 100, Math.round(M.habit[R.me][2] / M.habit[R.me][3] * 100) / 100] } : null,
+        drill: R && R.drill ? JSON.parse(JSON.stringify(R.drill)) : null, drills: JSON.parse(JSON.stringify(SV.drills)), starsNow: R && R.starsNow || 0 };
+    },
+    scene: function () { return SCENE; },
+    perf: function () { return { frame: series(PERF.ft), work: series(PERF.fw) }; },
+    perfReset: function () { PERF.n = 0; PERF.i = 0; },
+  };
+
+  // ══ Boot ═══════════════════════════════════════════════════════════════════════════════════════════════════
+  if (TOUCH) { document.body.classList.add('touch'); Array.prototype.forEach.call(document.querySelectorAll('.keys-only'), function (e) { e.style.display = 'none'; }); Array.prototype.forEach.call(document.querySelectorAll('.touch-only'), function (e) { e.style.display = ''; }); }
+  document.body.classList.toggle('rm', SV.settings.motion === 'reduced');
+  fit(); addEventListener('resize', fit);
+  setScene('title');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
